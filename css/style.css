@@ -1,0 +1,51 @@
+/* ---------- Personagens ---------- */
+.char { width: 56px; height: 70px; overflow: visible; }
+.char .leg, .char .arm { transform-box: fill-box; transform-origin: top center; }
+.char.walking .leg-l { animation: legSwing .45s ease-in-out infinite; }
+.char.walking .leg-r { animation: legSwing .45s ease-in-out infinite reverse; }
+.char.walking .arm-l { animation: legSwing .45s ease-in-out infinite reverse; }
+.char.walking .arm-r { animation: legSwing .45s ease-in-out infinite; }
+.char.walking { animation: bob .45s ease-in-out infinite; }
+.char.idle { animation: breathe 3s ease-in-out infinite; }
+.char.cheer { animation: jump .9s ease-in-out infinite; }
+.char.cheer .arm-l { transform: rotate(150deg); }
+.char.cheer .arm-r { transform: rotate(-150deg); }
+.char.ghost { filter: grayscale(1); opacity: .35; }
+@keyframes legSwing { 0%,100% { transform: rotate(18deg);} 50% { transform: rotate(-18deg);} }
+@keyframes bob { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-3px);} }
+@keyframes breathe { 0%,100% { transform: translateY(0) scale(1);} 50% { transform: translateY(-2px) scale(1.02);} }
+@keyframes jump { 0%,100% { transform: translateY(0);} 40% { transform: translateY(-12px);} }
+
+/* ---------- Trilhas da jornada ---------- */
+.track { position: relative; height: 96px; }
+.track-line { position: absolute; left: 0; right: 0; top: 70px; height: 6px; border-radius: 999px; background: #e2e8f0; }
+.track-fill { position: absolute; left: 0; top: 70px; height: 6px; border-radius: 999px; transition: width .9s ease; }
+.track-node { position: absolute; top: 62px; width: 22px; height: 22px; margin-left: -11px; border-radius: 999px; border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); background: #cbd5e1; cursor: pointer; z-index: 2; }
+.track-node.done { background: var(--c); }
+.track-node.current { background: #fff; border-color: var(--c); animation: pulse 1.6s ease-in-out infinite; }
+.track-node.final { width: 28px; height: 28px; top: 59px; margin-left: -14px; font-size: 14px; display:flex; align-items:center; justify-content:center; background:#fff; border-color:#94a3b8; }
+.track-node.final.done { background: var(--c); border-color: var(--c); }
+.track-char { position: absolute; top: 0; margin-left: -28px; transition: left 1.2s cubic-bezier(.45,.05,.55,.95); z-index: 3; }
+.track-node[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; z-index: 20; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);} 50% { box-shadow: 0 0 0 8px transparent; } }
+
+/* ---------- Etapas gerais ---------- */
+.stage { position: relative; }
+.stage + .stage::before { content: ''; position: absolute; left: -50%; top: 18px; width: 100%; height: 3px; background: #e2e8f0; z-index: 0; }
+.stage.done + .stage.done::before, .stage.done + .stage.current::before { background: #4f46e5; }
+
+/* ---------- Diversos ---------- */
+.fade-in { animation: fadeIn .35s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+.scene { background: radial-gradient(ellipse at 50% 100%, #c7d2fe 0%, #e0e7ff 45%, transparent 70%); }
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+.toast { animation: toastIn .3s ease both; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none; } }
+.celebrate-title { background: linear-gradient(90deg,#f59e0b,#ec4899,#8b5cf6,#0ea5e9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+@media print {
+  aside, header, .no-print { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  body { background: #fff; }
+}
