@@ -54,6 +54,21 @@ function migrarDB() {
   if (!DB.posItens) { DB.posItens = JSON.parse(JSON.stringify(POS_PADRAO)); mudou = true; }
   DB.posItens.forEach(it => { const p = POS_PADRAO.find(x => x.id === it.id); if (p && !it.resp) { it.resp = p.resp; mudou = true; } });
   DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } });
+  // Tarefas novas incluídas no padrão depois que o banco já existia. Cada uma roda uma única vez,
+  // para não recriar uma tarefa que o administrador tenha apagado de propósito.
+  DB.migracoes = DB.migracoes || [];
+  [{ id: 'tarefa-pedido', fid: 'abertura', tid: 'pedido', antesDe: 'estoque' }].forEach(m => {
+    if (DB.migracoes.includes(m.id)) return;
+    const f = DB.frentes.find(x => x.id === m.fid), tp = FRENTES_PADRAO.find(x => x.id === m.fid).tarefas.find(x => x.id === m.tid);
+    if (f && !f.tarefas.some(x => x.id === m.tid)) {
+      const pos = f.tarefas.findIndex(x => x.id === m.antesDe);
+      f.tarefas.splice(pos < 0 ? f.tarefas.length : pos, 0, JSON.parse(JSON.stringify(tp)));
+      // Quem já recebeu o estoque (ou já inaugurou) certamente já fez o pedido.
+      DB.unidades.forEach(u => { const prox = u.tarefas[m.fid] && u.tarefas[m.fid][m.antesDe];
+        if (u.inauguracao.concluida || (prox && prox.status === 'concluido')) { u.tarefas[m.fid] = u.tarefas[m.fid] || {}; u.tarefas[m.fid][m.tid] = { status: 'concluido', concluidoEm: prox && prox.concluidoEm || new Date().toISOString(), anexos: [], comentarios: [] }; } });
+    }
+    DB.migracoes.push(m.id); mudou = true;
+  });
   if (mudou) saveDB();
 }
 function saveDB() {

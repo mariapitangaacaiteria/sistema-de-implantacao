@@ -128,6 +128,8 @@ const FRENTES_PADRAO = [
     tarefas: [
       { id: 'layout',  titulo: 'Checklist de loja pronta (layout, mobiliário, sinalização e fachada)', prazoDias: 80, anexo: true,
         instrucoes: 'Percorra o checklist de loja pronta e anexe fotos da fachada, salão e cozinha finalizados.' },
+      { id: 'pedido',  titulo: 'Realizar o primeiro pedido', prazoDias: 80,
+        instrucoes: 'Faça o pedido inicial de insumos e embalagens com a lista sugerida pela franqueadora, a tempo de receber antes do treinamento.' },
       { id: 'estoque', titulo: 'Receber estoque inicial', prazoDias: 85,
         instrucoes: 'Confira o recebimento do pedido inicial de insumos e embalagens.' },
       { id: 'validacao_treinamento', titulo: 'Validação do consultor para treinamento', prazoDias: 85, resp: 'franqueadora',
@@ -253,7 +255,7 @@ function criarBancoDemo() {
         contratacao: ['quadro', 'vagas', 'entrevistas', 'contratacao', 'registro'],
         legal: ['lista', 'cnpj', 'alvara', 'sanitario', 'bombeiros', 'validacao'],
         marketing: ['reuniao', 'brindes', 'desconto', 'artes', 'instagram', 'trafego'],
-        abertura: ['layout', 'estoque', 'validacao_treinamento'],
+        abertura: ['layout', 'pedido', 'estoque', 'validacao_treinamento'],
       },
       agenda: { data: _diasAtras(12), local: 'Loja Juazeiro do Norte', participantes: 'Marcos Pereira, gerente e 6 atendentes', instrutor: 'Carla Mendes' },
       treinamentoConcluido: true,
@@ -268,7 +270,7 @@ function criarBancoDemo() {
         contratacao: ['quadro', 'vagas', 'entrevistas', 'contratacao', 'registro'],
         legal: ['lista', 'cnpj', 'alvara', 'sanitario', 'bombeiros', 'validacao'],
         marketing: ['reuniao', 'brindes', 'desconto', 'artes', 'instagram', 'trafego'],
-        abertura: ['layout', 'estoque', 'validacao_treinamento'],
+        abertura: ['layout', 'pedido', 'estoque', 'validacao_treinamento'],
       },
       agenda: { data: _diasFrente(3), local: 'Centro de treinamento da franqueadora', participantes: 'Fernanda Alves, gerente e 5 atendentes', instrutor: 'Carla Mendes' },
       modulosFeitos: ['cultura', 'atendimento'],
@@ -308,6 +310,7 @@ function criarBancoDemo() {
     vendasItens: JSON.parse(JSON.stringify(VENDAS_PADRAO)),
     kickoffItens: JSON.parse(JSON.stringify(KICKOFF_PADRAO)),
     posItens: JSON.parse(JSON.stringify(POS_PADRAO)),
+    migracoes: ['tarefa-pedido'],
     config: { marca: 'Rede Sabor & Cia', treinamentoRequer: 'todas' },
   };
 }
