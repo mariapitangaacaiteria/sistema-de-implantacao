@@ -112,6 +112,11 @@ const acoes = {
   'devolver': (d) => abrirModal(`<div class="text-lg font-bold">Devolver para ajuste</div><p class="text-sm text-slate-600 mt-1">Explique ao franqueado o que precisa ser corrigido.</p>
     <form data-form="devolver" data-uid="${d.uid || ''}" data-fid="${d.fid}" data-tid="${d.tid}" class="mt-4 space-y-3"><textarea name="motivo" required rows="3" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-brand-500" placeholder="Motivo da devolução"></textarea><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white">Devolver</button></div></form>`),
   'reabrir': (d) => { reabrirTarefa(unidadeDaAcao(d), d.fid, d.tid); toast('Tarefa reaberta.', 'info'); rerender(); },
+  'anexo-aprovar': (d) => { const u = unidadeDaAcao(d); const st = taskState(u, d.fid, d.tid); const a = st.anexos.find(x => x.id === d.id); if (!a) return;
+    Object.assign(a, { avaliacao: 'aprovado', avaliadoPor: session.user.nome, avaliadoEm: new Date().toISOString(), ajuste: null });
+    registrar(u, `Aprovou o documento "${a.nome}".`, 'aprovado'); notificar(u, 'franqueado', `O documento "${a.nome}" foi aprovado. ✅`, fonteDocumentos(d.fid).rota); toast('Documento aprovado.'); rerender(); },
+  'anexo-ajuste': (d) => abrirModal(`<div class="text-lg font-bold">Pedir ajuste no documento</div><p class="text-sm text-slate-600 mt-1">Explique ao franqueado o que precisa ser corrigido.</p>
+    <form data-form="anexo-ajuste" data-uid="${d.uid || ''}" data-fid="${d.fid}" data-tid="${d.tid}" data-id="${d.id}" class="mt-4 space-y-3"><textarea name="motivo" required rows="3" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-brand-500" placeholder="O que precisa ser ajustado"></textarea><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white">Pedir ajuste</button></div></form>`),
   'remover-anexo': (d) => { const st = taskState(ctx.unit, d.fid, d.tid); st.anexos = st.anexos.filter(a => a.id !== d.id); setTaskState(ctx.unit, d.fid, d.tid, { anexos: st.anexos }); rerender(); },
   'confirmar-cof': () => abrirModal(`<div class="text-lg font-bold">Registrar reunião introdutória (kickoff)</div><p class="text-sm text-slate-600 mt-1">Ao registrar, as frentes de implantação são liberadas e os prazos passam a contar a partir desta data.</p><form data-form="cof" class="mt-4 space-y-3"><div>${label('Data da reunião')}${input('data', `type="date" value="${todayISO()}" required`)}</div><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white">Registrar</button></div></form>`),
   'toggle-modulo': (d, el) => { const u = ctx.unit; u.treinamento.modulos[d.mid] = el.checked; const m = DB.modulos.find(x => x.id === d.mid); registrar(u, `${el.checked ? 'Concluiu' : 'Reabriu'} o módulo "${m.titulo}".`, el.checked ? 'concluido' : 'info'); rerender(); },
@@ -145,8 +150,35 @@ const acoes = {
 };
 
 /* ---------- Formulários (data-form) ---------- */
+// Anexa arquivos a uma tarefa. Arquivos de até 1 MB são guardados no navegador para poderem ser abertos na avaliação.
+const LIMITE_ARQUIVO = 1024 * 1024;
+function lerArquivo(file) {
+  return new Promise(res => { if (file.size > LIMITE_ARQUIVO) return res(null);
+    const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(file); });
+}
+async function anexarDocumentos(unit, fid, tid, files) {
+  if (!files.length) return;
+  const st = setTaskState(unit, fid, tid, {}); const fonte = fonteDocumentos(fid); const t = fonte.itens.find(x => x.id === tid);
+  const novos = [];
+  for (const file of files) {
+    const url = await lerArquivo(file);
+    const a = { id: uid('ax'), nome: file.name, tamanho: file.size, tipo: file.type, data: new Date().toISOString(), por: session.user.nome, porId: session.user.id, perfil: session.user.perfil, avaliacao: isFranqueado() ? 'pendente' : null };
+    if (url) a.url = url;
+    st.anexos.push(a); novos.push(a);
+  }
+  registrar(unit, `Anexou ${files.length} documento(s) em "${t.titulo}"${isFranqueado() ? ' para avaliação' : ''}.`, 'anexo');
+  if (isFranqueado()) notificar(unit, 'franqueadora', `${unit.nome} enviou ${files.length} documento(s) para avaliação em "${t.titulo}".`, fonte.rota);
+  else notificar(unit, 'franqueado', `${session.user.nome} anexou ${files.length} documento(s) em "${t.titulo}".`, fonte.rota);
+  if (!saveDB()) { novos.forEach(a => delete a.url); saveDB(); toast('Sem espaço no navegador para guardar o arquivo. Foram registrados só o nome e o tamanho.', 'info'); }
+  else toast(isFranqueado() ? 'Documento(s) enviado(s) para avaliação.' : 'Documento(s) anexado(s).');
+  rota();
+}
 function fimKickoff(u) { if (kickoffConcluido(u)) { registrar(u, '🤝 Etapa de Kickoff concluída.', 'marco'); confete(2500); } }
 const forms = {
+  'anexo-ajuste': (v, f) => { const u = f.dataset.uid ? getUnidade(f.dataset.uid) : ctx.unit; const a = taskState(u, f.dataset.fid, f.dataset.tid).anexos.find(x => x.id === f.dataset.id); if (!a) return;
+    Object.assign(a, { avaliacao: 'ajuste', avaliadoPor: session.user.nome, avaliadoEm: new Date().toISOString(), ajuste: { motivo: v.motivo, por: session.user.nome } });
+    registrar(u, `Pediu ajuste no documento "${a.nome}": ${v.motivo}`, 'devolvido'); notificar(u, 'franqueado', `Ajuste solicitado no documento "${a.nome}".`, fonteDocumentos(f.dataset.fid).rota);
+    fecharModal(); toast('Ajuste solicitado.', 'info'); rerender(); },
   'kickoff-nome': (v, f) => { if (!isFranqueadora()) return; const u = ctx.unit; const it = getKickoffItens().find(x => x.id === f.dataset.iid); const nome = v.valor.trim(); if (!nome) return;
     const antes = kickoffConcluido(u); u.kickoff = u.kickoff || {};
     u.kickoff[it.id] = { valor: nome, concluidoEm: new Date().toISOString(), por: session.user.nome };
@@ -190,9 +222,7 @@ document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.matches('input[type=checkbox][data-action]')) { acoes[el.dataset.action](el.dataset, el, e); return; }
   if (el.dataset.file) {
-    const [fid, tid] = el.dataset.file.split('|'); const st = setTaskState(ctx.unit, fid, tid, {}); const t = getFrente(fid).tarefas.find(x => x.id === tid);
-    Array.from(el.files).forEach(file => st.anexos.push({ id: uid('ax'), nome: file.name, tamanho: file.size, data: new Date().toISOString(), por: session.user.nome }));
-    registrar(ctx.unit, `Anexou ${el.files.length} arquivo(s) em "${t.titulo}".`, 'anexo'); toast('Arquivo(s) anexado(s).'); rerender(); return;
+    anexarDocumentos(ctx.unit, ...el.dataset.file.split('|'), Array.from(el.files)); return;
   }
   if (el.dataset.filter) { filtros[el.dataset.filter] = el.value; rota(); const n = document.querySelector(`[data-filter="${el.dataset.filter}"]`); if (n && n.tagName === 'INPUT') { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
 });

@@ -56,7 +56,10 @@ function migrarDB() {
   DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } });
   if (mudou) saveDB();
 }
-function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+function saveDB() {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); return true; }
+  catch (e) { console.warn('Não foi possível salvar no navegador:', e); return false; }  // ex.: espaço do localStorage esgotado
+}
 function resetDemo() { localStorage.removeItem(DB_KEY); localStorage.removeItem(SESSION_KEY); loadDB(); session.user = null; location.hash = '#/login'; }
 
 /* ---------- Sessão ---------- */
@@ -240,6 +243,27 @@ function proximaAcao(unit) {
 function registrar(unit, texto, tipo = 'info', extra = {}) {
   unit.timeline.unshift({ id: uid('ev'), data: new Date().toISOString(), usuario: session.user ? session.user.nome : 'Sistema', perfil: session.user ? session.user.perfil : 'sistema', texto, tipo, ...extra });
 }
+// Documentos anexados aguardando avaliação da franqueadora.
+// Lugares onde se anexam documentos: as tarefas de cada frente e os itens de etapas com checklist (ex.: Vendas).
+// Os anexos de etapas ficam em unit.tarefas[<id da etapa>][<id do item>], igual às tarefas.
+function fontesDocumentos() {
+  return [
+    { id: 'vendas', nome: 'Vendas', curto: 'Vendas', emoji: '✍️', rota: 'vendas', itens: getVendasItens() },
+    ...getFrentes().map(f => ({ id: f.id, nome: f.nome, curto: f.curto, emoji: f.emoji, rota: 'frente/' + f.id, itens: f.tarefas })),
+  ];
+}
+const fonteDocumentos = id => fontesDocumentos().find(f => f.id === id);
+function documentosUnidade(unit) {
+  const out = [];
+  fontesDocumentos().forEach(f => f.itens.forEach(t => taskState(unit, f.id, t.id).anexos.forEach(a => out.push({ frente: f, tarefa: t, anexo: a }))));
+  return out;
+}
+function documentosAguardando(unit) { return documentosUnidade(unit).filter(d => d.anexo.avaliacao === 'pendente'); }
+const AVALIACAO_DOC = {
+  pendente: { label: 'Aguardando avaliação', cls: 'bg-amber-100 text-amber-700' },
+  aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
+  ajuste:   { label: 'Ajuste solicitado', cls: 'bg-rose-100 text-rose-700' },
+};
 function notificar(unit, para, texto, rota) {
   const linkAbs = para === 'franqueado' ? '#/' + rota : '#/u/' + unit.id + '/' + rota;
   unit.notificacoes.unshift({ id: uid('nt'), para, texto, link: linkAbs, data: new Date().toISOString(), lida: false });

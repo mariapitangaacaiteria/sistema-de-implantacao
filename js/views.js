@@ -40,6 +40,26 @@ function etapasBar(unit) {
     </${e.href ? 'a' : 'div'}>`; }).join('')}</div>`;
 }
 
+// Seção de documentos de uma tarefa: lista, avaliação e botão de anexar (disponível em todas as tarefas).
+function documentosTarefa(unit, fid, t, st, podeAnexar = !!unit.cofEm) {
+  const lista = st.anexos.map(a => { const av = AVALIACAO_DOC[a.avaliacao];
+    const meu = a.porId ? a.porId === session.user.id : a.por === session.user.nome;
+    const avaliar = isFranqueadora() && a.avaliacao === 'pendente'
+      ? btn('✓ Aprovar', `data-action="anexo-aprovar" data-fid="${fid}" data-tid="${t.id}" data-id="${a.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white !px-2.5 !py-1 !text-xs') + btn('↩ Pedir ajuste', `data-action="anexo-ajuste" data-fid="${fid}" data-tid="${t.id}" data-id="${a.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 !px-2.5 !py-1 !text-xs') : '';
+    return `<div class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white text-sm">
+      <span class="font-medium text-slate-800 truncate max-w-[260px]" title="${esc(a.nome)}">📄 ${esc(a.nome)}</span><span class="text-xs text-slate-400">${fmtBytes(a.tamanho)}</span>
+      ${av ? badge(av.label, av.cls) : ''}
+      <span class="text-xs text-slate-500">${esc(a.por)} · ${fmtDateTime(a.data)}</span>
+      ${a.ajuste ? `<span class="w-full text-xs text-rose-700">↩ ${esc(a.ajuste.por)}: ${esc(a.ajuste.motivo)}</span>` : ''}
+      ${a.avaliadoPor && a.avaliacao === 'aprovado' ? `<span class="text-xs text-slate-400">aprovado por ${esc(a.avaliadoPor)}</span>` : ''}
+      <span class="ml-auto flex items-center gap-2">${a.url ? `<a href="${a.url}" download="${esc(a.nome)}" target="_blank" class="text-xs font-semibold text-brand-600 hover:underline">Abrir</a>` : ''}${avaliar}${meu && a.avaliacao !== 'aprovado' ? `<button data-action="remover-anexo" data-fid="${fid}" data-tid="${t.id}" data-id="${a.id}" title="Remover" class="text-slate-400 hover:text-rose-600">✕</button>` : ''}</span>
+    </div>`; }).join('');
+  const anexar = podeAnexar ? `<label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 cursor-pointer">📎 Anexar documento<input type="file" class="hidden" data-file="${fid}|${t.id}" multiple></label>` : '';
+  if (!lista && !anexar) return '';
+  return `<div class="mt-3"><div class="flex items-center gap-3 mb-2"><span class="text-sm font-semibold text-slate-600">📎 Documentos (${st.anexos.length})</span>${anexar}</div>
+    ${lista ? `<div class="space-y-2">${lista}</div>` : `<div class="text-xs text-slate-400">${isFranqueado() ? (fid === 'vendas' ? 'Nenhum documento enviado.' : 'Envie arquivos para a franqueadora avaliar.') : (fid === 'vendas' ? 'Anexe aqui documentos para o franqueado.' : 'Nenhum documento enviado.')}</div>`}</div>`;
+}
+
 function tarefaStatusBadge(unit, t, st) {
   const s = STATUS_TAREFA[st.status]; let html = badge(s.label, s.cls);
   if (st.status !== 'concluido' && tarefaAtrasada(unit, t, st)) html += ' ' + badge('Prazo vencido', 'bg-rose-600 text-white');
@@ -297,7 +317,6 @@ function viewFrente(unit, fid) {
     if (podeConcluir) acoes += btn(t.validacao && isFranqueado() ? '📤 Enviar para validação' : '✓ Marcar como concluída', `data-action="concluir" data-fid="${fid}" data-tid="${t.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white');
     if (isFranqueadora() && st.status === 'em_validacao') acoes += btn('✓ Aprovar', `data-action="aprovar" data-fid="${fid}" data-tid="${t.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white') + btn('↩ Devolver', `data-action="devolver" data-fid="${fid}" data-tid="${t.id}"`, 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100');
     if (isFranqueadora() && st.status === 'concluido') acoes += btnSec('Reabrir', `data-action="reabrir" data-fid="${fid}" data-tid="${t.id}"`);
-    if (unit.cofEm && st.status !== 'concluido') acoes += `<label class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 cursor-pointer">📎 Anexar arquivo<input type="file" class="hidden" data-file="${fid}|${t.id}" multiple></label>`;
     return `<div id="tarefa-${t.id}" class="rounded-2xl border ${st.status === 'concluido' ? 'bg-emerald-50/40 border-emerald-200' : st.status === 'devolvido' ? 'border-rose-200' : st.status === 'em_validacao' ? 'border-amber-200' : 'border-slate-200'} bg-white">
       <div class="p-4 md:p-5 flex gap-4">
         <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${st.status === 'concluido' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${st.status === 'concluido' ? '✓' : i + 1}</div>
@@ -311,7 +330,7 @@ function viewFrente(unit, fid) {
           </div>
           ${st.status === 'devolvido' && st.devolucao ? `<div class="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-100 text-sm text-rose-800"><b>Devolvida por ${esc(st.devolucao.por)}:</b> ${esc(st.devolucao.motivo)}</div>` : ''}
           <details class="mt-3 group"><summary class="text-sm font-semibold text-brand-600 inline-flex items-center gap-1">📘 Instruções e orientações <span class="group-open:rotate-180 transition">▾</span></summary><div class="mt-2 text-sm text-slate-600 bg-slate-50 rounded-xl p-3">${esc(t.instrucoes || 'Sem instruções cadastradas.')}</div></details>
-          ${st.anexos.length ? `<div class="mt-3 flex flex-wrap gap-2">${st.anexos.map(a => `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs text-slate-700">📎 ${esc(a.nome)} <span class="text-slate-400">${fmtBytes(a.tamanho)}</span>${st.status !== 'concluido' ? `<button data-action="remover-anexo" data-fid="${fid}" data-tid="${t.id}" data-id="${a.id}" class="text-slate-400 hover:text-rose-600 ml-1">✕</button>` : ''}</span>`).join('')}</div>` : ''}
+          ${documentosTarefa(unit, fid, t, st)}
           <details class="mt-3 group"><summary class="text-sm font-semibold text-slate-600 inline-flex items-center gap-1">💬 Comentários (${st.comentarios.length}) <span class="group-open:rotate-180 transition">▾</span></summary>
             <div class="mt-2 space-y-2">${st.comentarios.map(c => `<div class="text-sm bg-slate-50 rounded-xl p-3"><div class="flex justify-between text-xs text-slate-500 mb-1"><b class="${c.perfil === 'franqueado' ? 'text-brand-700' : 'text-emerald-700'}">${esc(c.autor)}</b><span>${fmtDateTime(c.data)}</span></div>${esc(c.texto)}</div>`).join('')}
               <form data-form="comentar" data-fid="${fid}" data-tid="${t.id}" class="flex gap-2"><input name="texto" required placeholder="Comentar ou pedir ajuda…" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:border-brand-500"><button class="px-3 py-2 rounded-xl bg-slate-800 text-white text-sm font-semibold">Enviar</button></form></div></details>
@@ -413,18 +432,19 @@ function viewAbertura(unit) {
 function viewVendas(unit) {
   const itens = getVendasItens(); const feitos = vendasFeitas(unit);
   const lista = itens.map((v, i) => { const st = unit.vendas && unit.vendas[v.id]; const ok = !!st;
-    return `<div class="flex items-center gap-4 p-4 rounded-2xl border ${ok ? 'bg-emerald-50/40 border-emerald-200' : 'border-slate-200 bg-white'}">
+    return `<div class="flex items-start gap-4 p-4 rounded-2xl border ${ok ? 'bg-emerald-50/40 border-emerald-200' : 'border-slate-200 bg-white'}">
       <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ok ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${ok ? '✓' : i + 1}</div>
       <div class="flex-1 min-w-0">
         <div class="font-bold ${ok ? 'text-slate-500 line-through' : 'text-slate-900'}">${esc(v.titulo)}</div>
         <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1"><span>👤 Responsável: <b>${esc(v.area)}${v.quem ? ' · ' + esc(v.quem) : ''}</b></span>${ok ? `<span>✅ Concluído em ${fmtDateTime(st.concluidoEm)}${st.por ? ' · ' + esc(st.por) : ''}</span>` : ''}</div>
+        ${documentosTarefa(unit, 'vendas', v, taskState(unit, 'vendas', v.id), true)}
       </div>
       ${isFranqueadora() ? (ok ? btnSec('Reabrir', `data-action="venda-toggle" data-vid="${v.id}"`) : btn('✓ Concluir', `data-action="venda-toggle" data-vid="${v.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white')) : ''}
     </div>`; }).join('');
   return `${pageTitle('Vendas', 'Checklist comercial antes do kickoff, com a área responsável por cada item.')}
     ${card(`<div class="p-5"><div class="flex justify-between text-sm font-bold"><span>${feitos} de ${itens.length} itens</span><span class="text-brand-600">${Math.round(feitos / itens.length * 100)}%</span></div><div class="mt-2">${barra(Math.round(feitos / itens.length * 100), '#4f46e5', 'h-3')}</div></div>`, 'mb-5')}
     <div class="space-y-3">${lista}</div>
-    ${isFranqueado() ? '<p class="text-xs text-slate-400 mt-3">Estes itens são conduzidos pela franqueadora. Você acompanha o andamento por aqui.</p>' : ''}`;
+    ${isFranqueado() ? '<p class="text-xs text-slate-400 mt-3">Estes itens são conduzidos pela franqueadora. Você acompanha o andamento e baixa os documentos enviados por aqui.</p>' : ''}`;
 }
 
 /* ---------- Kickoff ---------- */
@@ -496,11 +516,11 @@ function viewPos(unit) {
 /* ---------- Documentos ---------- */
 function viewDocumentos(unit) {
   const rows = [];
-  getFrentes().forEach(f => f.tarefas.forEach(t => taskState(unit, f.id, t.id).anexos.forEach(a => rows.push({ f, t, a }))));
+  documentosUnidade(unit).forEach(d => rows.push({ f: d.frente, t: d.tarefa, a: d.anexo }));
   rows.sort((a, b) => b.a.data.localeCompare(a.a.data));
   return `${pageTitle('Documentos', 'Todos os arquivos e comprovantes anexados nas tarefas desta unidade.')}
-    ${card(rows.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 uppercase border-b"><th class="p-4">Arquivo</th><th class="p-4">Frente</th><th class="p-4">Tarefa</th><th class="p-4">Enviado por</th><th class="p-4">Data</th></tr></thead><tbody class="divide-y">${rows.map(r => `<tr class="hover:bg-slate-50"><td class="p-4 font-medium">📎 ${esc(r.a.nome)} <span class="text-xs text-slate-400">${fmtBytes(r.a.tamanho)}</span></td><td class="p-4">${r.f.emoji} ${esc(r.f.curto)}</td><td class="p-4"><a href="${link('frente/' + r.f.id)}#tarefa-${r.t.id}" class="text-brand-600 hover:underline">${esc(r.t.titulo)}</a></td><td class="p-4">${esc(r.a.por)}</td><td class="p-4 text-slate-500">${fmtDateTime(r.a.data)}</td></tr>`).join('')}</tbody></table></div>` : vazio('Nenhum documento anexado ainda.', '📎'))}
-    <p class="text-xs text-slate-400 mt-3">Neste protótipo apenas o nome e o tamanho dos arquivos são registrados. Em produção os arquivos serão armazenados no servidor.</p>`;
+    ${card(rows.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 uppercase border-b"><th class="p-4">Arquivo</th><th class="p-4">Etapa / frente</th><th class="p-4">Tarefa</th><th class="p-4">Enviado por</th><th class="p-4">Data</th><th class="p-4">Avaliação</th><th class="p-4"></th></tr></thead><tbody class="divide-y">${rows.map(r => `<tr class="hover:bg-slate-50"><td class="p-4 font-medium">📎 ${esc(r.a.nome)} <span class="text-xs text-slate-400">${fmtBytes(r.a.tamanho)}</span></td><td class="p-4">${r.f.emoji} ${esc(r.f.curto)}</td><td class="p-4"><a href="${link(r.f.rota)}${r.f.id === 'vendas' ? '' : '#tarefa-' + r.t.id}" class="text-brand-600 hover:underline">${esc(r.t.titulo)}</a></td><td class="p-4">${esc(r.a.por)}</td><td class="p-4 text-slate-500">${fmtDateTime(r.a.data)}</td><td class="p-4">${AVALIACAO_DOC[r.a.avaliacao] ? badge(AVALIACAO_DOC[r.a.avaliacao].label, AVALIACAO_DOC[r.a.avaliacao].cls) : '—'}</td><td class="p-4">${r.a.url ? `<a href="${r.a.url}" download="${esc(r.a.nome)}" target="_blank" class="text-xs font-semibold text-brand-600 hover:underline">Abrir</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : vazio('Nenhum documento anexado ainda.', '📎'))}
+    <p class="text-xs text-slate-400 mt-3">Neste protótipo os arquivos de até 1 MB ficam salvos no navegador e podem ser abertos. Arquivos maiores registram só o nome e o tamanho. Em produção os arquivos serão armazenados no servidor.</p>`;
 }
 
 /* ---------- Linha do tempo ---------- */
@@ -561,8 +581,11 @@ function viewFranqueadora() {
 
 function viewValidacoes() {
   const valids = []; DB.unidades.forEach(u => validacoesPendentes(u).forEach(v => valids.push({ u, ...v })));
+  const docs = []; DB.unidades.forEach(u => documentosAguardando(u).forEach(d => docs.push({ u, ...d })));
+  const docsHtml = docs.length ? `<h2 class="font-extrabold text-lg text-slate-900 mt-8 mb-3">📎 Documentos aguardando avaliação (${docs.length})</h2><div class="space-y-2">${docs.map(d => card(`<div class="p-4 flex flex-col md:flex-row md:items-center gap-3"><div class="flex-1 text-sm"><b>${esc(d.anexo.nome)}</b> <span class="text-xs text-slate-400">${fmtBytes(d.anexo.tamanho)}</span><div class="text-xs text-slate-500">${esc(d.u.nome)} · ${d.frente.emoji} ${esc(d.tarefa.titulo)} · enviado por ${esc(d.anexo.por)} em ${fmtDateTime(d.anexo.data)}</div></div><div class="flex gap-2 flex-wrap">${d.anexo.url ? `<a href="${d.anexo.url}" download="${esc(d.anexo.nome)}" target="_blank" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100">Abrir</a>` : ''}${btn('✓ Aprovar', `data-action="anexo-aprovar" data-uid="${d.u.id}" data-fid="${d.frente.id}" data-tid="${d.tarefa.id}" data-id="${d.anexo.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white !px-3 !py-1.5 !text-xs')}${btn('↩ Pedir ajuste', `data-action="anexo-ajuste" data-uid="${d.u.id}" data-fid="${d.frente.id}" data-tid="${d.tarefa.id}" data-id="${d.anexo.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 !px-3 !py-1.5 !text-xs')}</div></div>`)).join('')}</div>` : '';
   return `${pageTitle('Validações pendentes', 'Entregas enviadas pelos franqueados que aguardam aprovação ou devolução.')}
-    ${valids.length ? `<div class="space-y-3">${valids.map(v => card(`<div class="p-5 flex flex-col md:flex-row md:items-center gap-4"><div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style="background:${v.frente.corSuave}">${v.frente.emoji}</div><div class="flex-1"><div class="font-bold">${esc(v.tarefa.titulo)}</div><div class="text-sm text-slate-500">${esc(v.u.nome)} · ${esc(v.frente.nome)} · enviada em ${fmtDateTime(v.st.enviadoEm)}</div>${v.st.anexos.length ? `<div class="text-xs text-slate-500 mt-1">📎 ${v.st.anexos.map(a => esc(a.nome)).join(', ')}</div>` : ''}</div><div class="flex gap-2 flex-wrap">${btnSec('Revisar', `onclick="location.hash='#/u/${v.u.id}/frente/${v.frente.id}'"`)}${btn('✓ Aprovar', `data-action="aprovar" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white')}${btn('↩ Devolver', `data-action="devolver" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50')}</div></div>`)).join('')}</div>` : card(vazio('Nenhuma entrega aguardando validação. Tudo em dia! 🎉', '✅'))}`;
+    ${valids.length ? `<div class="space-y-3">${valids.map(v => card(`<div class="p-5 flex flex-col md:flex-row md:items-center gap-4"><div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style="background:${v.frente.corSuave}">${v.frente.emoji}</div><div class="flex-1"><div class="font-bold">${esc(v.tarefa.titulo)}</div><div class="text-sm text-slate-500">${esc(v.u.nome)} · ${esc(v.frente.nome)} · enviada em ${fmtDateTime(v.st.enviadoEm)}</div>${v.st.anexos.length ? `<div class="text-xs text-slate-500 mt-1">📎 ${v.st.anexos.map(a => esc(a.nome)).join(', ')}</div>` : ''}</div><div class="flex gap-2 flex-wrap">${btnSec('Revisar', `onclick="location.hash='#/u/${v.u.id}/frente/${v.frente.id}'"`)}${btn('✓ Aprovar', `data-action="aprovar" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white')}${btn('↩ Devolver', `data-action="devolver" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50')}</div></div>`)).join('')}</div>` : card(vazio('Nenhuma entrega aguardando validação. Tudo em dia! 🎉', '✅'))}`
+    + docsHtml;
 }
 
 /* ---------- Administração ---------- */
@@ -617,7 +640,7 @@ function viewAjuda() {
   const itens = [
     ['🗺️', 'Como funciona a jornada?', 'Após a assinatura do contrato e a reunião introdutória (kickoff), as frentes de implantação começam em paralelo. Cada frente tem um personagem que avança a cada tarefa concluída. Quando todas terminam, os personagens se encontram no treinamento e a loja segue para a abertura e a festa de inauguração.'],
     ['✓', 'O que acontece quando marco uma tarefa?', 'Tarefas simples ficam concluídas na hora. Tarefas que exigem validação vão para a franqueadora, que pode aprovar ou devolver para ajuste com um comentário.'],
-    ['📎', 'Como anexo documentos?', 'Dentro de cada tarefa use "Anexar arquivo". Todos os anexos ficam reunidos na página Documentos.'],
+    ['📎', 'Como anexo documentos?', 'Em qualquer tarefa use "Anexar documento". O arquivo vai para a franqueadora avaliar, que aprova ou pede ajuste. Todos os documentos ficam reunidos na página Documentos.'],
     ['⏰', 'Como são calculados os prazos?', 'Cada tarefa tem um prazo em dias contado a partir da data da reunião introdutória (kickoff). Tarefas vencidas aparecem em vermelho e mudam o status da unidade para "Atenção".'],
     ['🔔', 'Onde vejo os avisos?', 'No sino do topo da página: novas tarefas, prazos próximos, comentários, devoluções e aprovações.'],
   ];
