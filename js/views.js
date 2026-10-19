@@ -22,21 +22,22 @@ const pageTitle = (t, sub = '', right = '') => `<div class="flex flex-col md:fle
 function etapasBar(unit) {
   const treLib = treinamentoLiberado(unit), treOk = treinamentoConcluido(unit), abOk = aberturaPronta(unit), inau = unit.inauguracao.concluida;
   const etapas = [
-    { k: 'contrato', t: 'Franqueado', s: 'Contrato assinado', emoji: '✍️', done: true },
-    { k: 'cof', t: 'COF', s: 'Informações introdutórias', emoji: '🤝', done: !!unit.cofEm },
-    { k: 'frentes', t: '6 Frentes', s: 'Execução em paralelo', emoji: '🚀', done: treLib },
+    { k: 'contrato', t: 'Vendas', s: `Checklist ${vendasFeitas(unit)}/${getVendasItens().length}`, emoji: '✍️', done: vendasConcluidas(unit), href: link('vendas') },
+    { k: 'kickoff', t: 'Kickoff', s: `Checklist ${kickoffFeitos(unit)}/${getKickoffItens().length}`, emoji: '🤝', done: kickoffConcluido(unit), href: link('kickoff') },
+    { k: 'frentes', t: 'Frentes de implantação', s: 'Execução em paralelo', emoji: '🚀', done: treLib },
     { k: 'treinamento', t: 'Treinamento', s: 'Equipe reunida', emoji: '🎓', done: treOk },
     { k: 'abertura', t: 'Abertura', s: 'Loja pronta', emoji: '🏪', done: abOk },
     { k: 'inauguracao', t: 'Inauguração', s: 'Festa!', emoji: '🎉', done: inau },
+    { k: 'pos', t: 'Pós-inauguração', s: `Checklist ${itensPosInauguracao(unit).filter(i => i.ok).length}/${itensPosInauguracao(unit).length}`, emoji: '📈', done: posInauguracaoConcluida(unit), href: link('pos') },
   ];
   const atualIdx = etapas.findIndex(e => !e.done);
-  return `<div class="grid grid-cols-6 gap-1">${etapas.map((e, i) => {
+  return `<div class="grid grid-cols-7 gap-1">${etapas.map((e, i) => {
     const cur = i === atualIdx; const cls = e.done ? 'done' : cur ? 'current' : '';
-    return `<div class="stage ${cls} text-center">
+    return `<${e.href ? `a href="${e.href}" title="Abrir checklist de ${e.t}"` : 'div'} class="stage ${cls} text-center block ${e.href ? 'hover:opacity-80' : ''}">
       <div class="relative z-10 mx-auto w-9 h-9 rounded-full flex items-center justify-center text-base ${e.done ? 'bg-brand-600 text-white' : cur ? 'bg-white ring-4 ring-brand-200 border-2 border-brand-600' : 'bg-slate-200 text-slate-500'}">${e.done ? '✓' : e.emoji}</div>
       <div class="mt-1.5 text-[11px] md:text-xs font-bold ${cur ? 'text-brand-700' : 'text-slate-700'}">${e.t}</div>
       <div class="hidden md:block text-[11px] text-slate-400">${e.s}</div>
-    </div>`; }).join('')}</div>`;
+    </${e.href ? 'a' : 'div'}>`; }).join('')}</div>`;
 }
 
 function tarefaStatusBadge(unit, t, st) {
@@ -119,9 +120,12 @@ function layout(content, opts = {}) {
   if (unit) {
     sec(isFranqueadora() ? esc(unit.nome) : 'Franquia');
     item(link('painel'), '🏠', 'Visão geral');
+    item(link('vendas'), '✍️', 'Vendas');
+    item(link('kickoff'), '🤝', 'Kickoff');
     item(link('jornada'), '🗺️', 'Minha jornada');
     item(link('treinamento'), '🎓', 'Treinamento');
     item(link('abertura'), '🎉', 'Abertura e inauguração');
+    item(link('pos'), '📈', 'Pós-inauguração');
     item(link('documentos'), '📎', 'Documentos');
     item(link('timeline'), '🕓', 'Linha do tempo');
     if (isFranqueadora()) item(link('relatorio'), '📄', 'Relatório');
@@ -170,11 +174,17 @@ function viewPainel(unit) {
   const franq = getUser(unit.franqueadoId);
   const saudacao = isFranqueado() ? `Olá, ${esc(session.user.nome.split(' ')[0])}! Vamos avançar com sua unidade.` : `${esc(unit.nome)} · responsável: ${esc(franq ? franq.nome : '—')}`;
 
+  const vendasBanner = !vendasConcluidas(unit) ? `<a href="${link('vendas')}" class="mb-6 p-5 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col md:flex-row md:items-center gap-4 hover:shadow-md transition">
+      <div class="text-3xl">✍️</div>
+      <div class="flex-1"><div class="font-bold text-indigo-800">Etapa de Vendas em andamento · ${vendasFeitas(unit)} de ${getVendasItens().length} itens</div><p class="text-sm text-indigo-700">Validação do candidato, negociação, COF, cadastro nos sistemas e grupo da unidade.</p></div>
+      <span class="text-sm font-semibold text-indigo-700">Ver checklist →</span>
+    </a>` : '';
   const cofBanner = !unit.cofEm ? `<div class="mb-6 p-5 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col md:flex-row md:items-center gap-4">
       <div class="text-3xl">🤝</div>
-      <div class="flex-1"><div class="font-bold text-amber-800">Aguardando a reunião da COF</div><p class="text-sm text-amber-700">As seis frentes de implantação são liberadas após a reunião em que o franqueado recebe as informações introdutórias da empresa.</p></div>
-      ${isFranqueadora() ? btn('Registrar COF realizada', 'data-action="confirmar-cof"', 'bg-amber-600 hover:bg-amber-700 text-white') : ''}
-    </div>` : '';
+      <div class="flex-1"><div class="font-bold text-amber-800">Aguardando a reunião introdutória (kickoff)</div><p class="text-sm text-amber-700">As frentes de implantação são liberadas após a reunião em que o franqueado recebe as informações introdutórias da empresa.</p></div>
+      ${isFranqueadora() ? btn('Registrar reunião realizada', 'data-action="confirmar-cof"', 'bg-amber-600 hover:bg-amber-700 text-white') : ''}
+    </div>` : (!kickoffConcluido(unit) ? `<a href="${link('kickoff')}" class="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-3 hover:shadow-md transition">
+      <div class="text-2xl">🤝</div><div class="flex-1 text-sm text-amber-800"><b>Kickoff com itens pendentes:</b> ${getKickoffItens().filter(i => !kickoffFeito(unit, i)).map(i => esc(i.titulo)).join(', ')}</div><span class="text-sm font-semibold text-amber-700">Ver checklist →</span></a>` : '');
 
   const frentes = getFrentes().map(f => { const p = prog.porFrente[f.id];
     return `<a href="${link('frente/' + f.id)}" class="group bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition ${!unit.cofEm ? 'opacity-60 pointer-events-none' : ''}">
@@ -200,8 +210,8 @@ function viewPainel(unit) {
 
   const notifs = minhasNotificacoes().filter(n => n.unidade.id === unit.id).slice(0, 4);
   return `
-    ${pageTitle(saudacao, `${esc(unit.cidade)} · contrato assinado em ${fmtDate(unit.contratoEm)}${unit.cofEm ? ' · COF em ' + fmtDate(unit.cofEm) : ''}`, badge(st.label, st.cls + ' !text-sm !px-3 !py-1'))}
-    ${cofBanner}
+    ${pageTitle(saudacao, `${esc(unit.cidade)} · contrato assinado em ${fmtDate(unit.contratoEm)}${unit.cofEm ? ' · kickoff em ' + fmtDate(unit.cofEm) : ''}${consultorCampo(unit) ? ' · consultor de campo: ' + esc(consultorCampo(unit)) : ''}`, badge(st.label, st.cls + ' !text-sm !px-3 !py-1'))}
+    ${vendasBanner}${cofBanner}
     ${card(`<div class="p-5">${etapasBar(unit)}</div>`, 'mb-6')}
     <div class="grid lg:grid-cols-3 gap-4 mb-6">
       ${card(`<div class="p-5"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Progresso geral</div>
@@ -209,12 +219,12 @@ function viewPainel(unit) {
         <div class="mt-3">${barra(prog.pct, '#4f46e5', 'h-3')}</div><div class="text-xs text-slate-500 mt-2">${prog.done} de ${prog.total} itens da jornada</div></div>`)}
       ${card(`<div class="p-5 h-full flex flex-col"><div class="text-xs font-bold text-brand-600 uppercase tracking-wide">Próxima ação</div>
         <div class="text-lg font-bold text-slate-900 mt-2 flex-1">${esc(prox.texto)}</div>
-        ${prox.resp === 'franqueadora' ? '<div class="text-xs text-slate-500 mb-3">Responsável: franqueadora / consultor</div>' : ''}
+        ${prox.resp === 'franqueadora' ? `<div class="text-xs text-slate-500 mb-3">Responsável: ${prox.quem ? esc(prox.quem) : 'franqueadora / consultor'}</div>` : ''}
         <a href="${link(prox.rota)}" class="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">Ir para a ação →</a></div>`, 'border-brand-200 bg-brand-50/40')}
       ${card(`<div class="p-5"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Avisos recentes</div>
         ${notifs.length ? notifs.map(n => `<a href="${n.link}" class="block text-sm py-1.5 border-b last:border-0 border-slate-100 ${n.lida ? 'text-slate-500' : 'text-slate-800 font-medium'}">${esc(n.texto)}</a>`).join('') : '<div class="text-sm text-slate-400">Nenhum aviso.</div>'}</div>`)}
     </div>
-    <div class="flex items-center justify-between mb-3"><h2 class="font-extrabold text-lg text-slate-900">As 6 frentes de implantação</h2><a href="${link('jornada')}" class="text-sm font-semibold text-brand-600 hover:underline">Ver mapa interativo →</a></div>
+    <div class="flex items-center justify-between mb-3"><h2 class="font-extrabold text-lg text-slate-900">Frentes de implantação</h2><a href="${link('jornada')}" class="text-sm font-semibold text-brand-600 hover:underline">Ver mapa interativo →</a></div>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">${frentes}</div>
     <div class="grid sm:grid-cols-2 gap-4">${extras}</div>`;
 }
@@ -254,7 +264,7 @@ function viewJornada(unit) {
         <div class="text-[10px] font-bold tracking-widest text-brand-600">ÁREA DE TREINAMENTO</div>
         <h3 class="text-xl font-extrabold text-slate-900 mt-1">${treLib ? 'A equipe está reunida! 🎓' : 'O ponto de encontro da equipe'}</h3>
         <p class="text-sm text-slate-500 mt-2">${treLib ? 'Todos os personagens chegaram. Hora de aprender a operar a unidade.' : `${chegaram.length} de ${getFrentes().length} personagens já chegaram. Os demais ainda estão a caminho.`}</p>
-        <div class="mt-4">${treLib ? `<a href="${link('treinamento')}" class="inline-flex px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700">${treOk ? 'Ver treinamento concluído' : 'Ir para o treinamento →'}</a>` : badge('🔒 Liberado ao concluir as 6 frentes', 'bg-slate-100 text-slate-600')}</div>
+        <div class="mt-4">${treLib ? `<a href="${link('treinamento')}" class="inline-flex px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700">${treOk ? 'Ver treinamento concluído' : 'Ir para o treinamento →'}</a>` : badge(`🔒 Liberado ao concluir as ${getFrentes().length} frentes`, 'bg-slate-100 text-slate-600')}</div>
       </div>
       <div class="flex-1 flex flex-wrap justify-center items-end gap-3 md:gap-5 min-h-[110px]">
         ${chegaram.map(f => `<div class="flex flex-col items-center"><div>${personagemSVG(f.id, treOk ? 'cheer' : 'idle', { feliz: true })}</div><span class="text-[10px] font-semibold mt-1" style="color:${f.cor}">${f.curto}</span></div>`).join('')}
@@ -268,7 +278,7 @@ function viewJornada(unit) {
     <a href="${link('abertura')}" class="rounded-2xl border p-5 flex items-center gap-4 ${unit.inauguracao.concluida ? 'bg-gradient-to-r from-amber-50 to-pink-50 border-pink-200' : 'bg-slate-50 border-slate-200 opacity-70'}"><div class="text-3xl">🎉</div><div><div class="font-bold">Festa de Inauguração</div><div class="text-xs text-slate-500">${unit.inauguracao.concluida ? 'Realizada em ' + fmtDate(unit.inauguracao.data) : unit.inauguracao.data ? 'Marcada para ' + fmtDate(unit.inauguracao.data) : 'O grande marco final'}</div></div></a>
   </div>`;
 
-  return `${pageTitle('Minha jornada', 'Seis personagens, seis frentes de trabalho. Cada um avança no seu percurso conforme as tarefas são concluídas. Clique em um personagem ou cartão para abrir a frente.')}
+  return `${pageTitle('Minha jornada', 'Um personagem para cada frente de trabalho. Cada um avança no seu percurso conforme as tarefas são concluídas. Clique em um personagem ou cartão para abrir a frente.')}
     ${card(`<div class="p-5">${etapasBar(unit)}</div>`, 'mb-6')}
     <div class="space-y-3 mb-6">${trilhas}</div>
     <div class="flex justify-center my-2 text-slate-300 text-2xl">↓</div>
@@ -292,10 +302,10 @@ function viewFrente(unit, fid) {
       <div class="p-4 md:p-5 flex gap-4">
         <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${st.status === 'concluido' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${st.status === 'concluido' ? '✓' : i + 1}</div>
         <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center gap-2"><span class="font-bold text-slate-900 ${st.status === 'concluido' ? 'line-through text-slate-500' : ''}">${esc(t.titulo)}</span>${tarefaStatusBadge(unit, t, st)}${t.validacao ? badge('Requer validação', 'bg-indigo-50 text-indigo-700 border border-indigo-100') : ''}</div>
+          <div class="flex flex-wrap items-center gap-2"><span class="font-bold text-slate-900 ${st.status === 'concluido' ? 'line-through text-slate-500' : ''}">${esc(t.titulo)}</span>${tarefaStatusBadge(unit, t, st)}${t.validacao ? badge('Requer validação', 'bg-indigo-50 text-indigo-700 border border-indigo-100') : ''}${t.pos ? badge('Pós-inauguração', 'bg-pink-50 text-pink-700 border border-pink-100') : ''}</div>
           <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
-            <span>👤 Responsável: <b>${respFranq ? 'Franqueadora / consultor' : 'Franqueado'}</b></span>
-            <span class="${atras ? 'text-rose-600 font-semibold' : ''}">📅 Prazo: ${prazo ? fmtDate(prazo) + (atras ? ` (${diffDays(todayISO(), prazo)} dias de atraso)` : '') : 'após a COF'}</span>
+            <span>👤 Responsável: <b>${respFranq ? 'Franqueadora / consultor' : 'Franqueado'}${t.quem ? ' · ' + esc(t.quem) : ''}</b></span>
+            <span class="${atras ? 'text-rose-600 font-semibold' : ''}">📅 Prazo: ${prazo ? fmtDate(prazo) + (atras ? ` (${diffDays(todayISO(), prazo)} dias de atraso)` : '') : t.pos ? `${t.prazoDias || 0} dias após a inauguração` : 'após o kickoff'}</span>
             ${st.concluidoEm ? `<span>✅ Concluída em ${fmtDateTime(st.concluidoEm)}${st.aprovadoPor ? ' · aprovada por ' + esc(st.aprovadoPor) : ''}</span>` : ''}
             ${st.enviadoEm && st.status === 'em_validacao' ? `<span>📤 Enviada em ${fmtDateTime(st.enviadoEm)}</span>` : ''}
           </div>
@@ -318,7 +328,7 @@ function viewFrente(unit, fid) {
         <div class="text-xs text-slate-500 mt-2">Responsável: <b>${esc(f.responsavel)}</b> · Apoio: <b>${esc(f.apoio)}</b></div></div>
       <div class="md:w-56"><div class="flex justify-between text-sm font-bold"><span>${p.done} de ${p.total} itens</span><span style="color:${f.cor}">${p.pct}%</span></div><div class="mt-2">${barra(p.pct, f.cor, 'h-3')}</div>${p.completa ? '<div class="text-xs text-emerald-600 font-semibold mt-2">🎯 Frente concluída! Personagem na área de treinamento.</div>' : ''}</div>
     </div>
-    ${!unit.cofEm ? '<div class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">As tarefas serão liberadas após a reunião da COF.</div>' : ''}
+    ${!unit.cofEm ? '<div class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">As tarefas serão liberadas após a reunião introdutória (kickoff).</div>' : ''}
     <div class="mt-5 space-y-3">${tarefas}</div>
     <div class="mt-6 text-xs text-slate-400">Regra: concluir uma tarefa que exige validação significa “enviar para validação”. A franqueadora pode aprovar ou devolver para ajuste.</div>`;
 }
@@ -391,7 +401,96 @@ function viewAbertura(unit) {
   } else {
     festa = `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-6 md:p-8 text-center opacity-80"><div class="text-5xl grayscale">🎉</div><h2 class="text-xl font-extrabold text-slate-700 mt-3">Festa de Inauguração</h2><p class="text-sm text-slate-500 mt-1">Será liberada quando todos os itens da abertura estiverem concluídos (${itens.filter(i => i.ok).length}/${itens.length}).</p></div>`;
   }
-  return `${pageTitle('Reta final', 'Da validação à Festa de Inauguração.')}<div class="grid lg:grid-cols-2 gap-5">${lista}${festa}</div>`;
+  const posFeitos = itensPosInauguracao(unit).filter(i => i.ok).length, posTotal = itensPosInauguracao(unit).length;
+  const pos = `<a href="${link('pos')}" class="mt-5 flex items-center gap-3 p-5 bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${inau.concluida ? 'bg-pink-100' : 'bg-slate-100'}">${inau.concluida ? '📈' : '🔒'}</div>
+    <div class="flex-1"><div class="font-bold">Pós-inauguração</div><div class="text-xs text-slate-500">${inau.concluida ? `${posFeitos}/${posTotal} itens · reuniões de acompanhamento de 15, 30 e 60 dias` : 'Liberada depois da Festa de Inauguração'}</div></div>
+    <span class="text-sm font-semibold text-brand-600">Abrir →</span></a>`;
+  return `${pageTitle('Reta final', 'Da validação à Festa de Inauguração e ao pós-inauguração.')}<div class="grid lg:grid-cols-2 gap-5">${lista}${festa}</div>${pos}`;
+}
+
+/* ---------- Vendas ---------- */
+function viewVendas(unit) {
+  const itens = getVendasItens(); const feitos = vendasFeitas(unit);
+  const lista = itens.map((v, i) => { const st = unit.vendas && unit.vendas[v.id]; const ok = !!st;
+    return `<div class="flex items-center gap-4 p-4 rounded-2xl border ${ok ? 'bg-emerald-50/40 border-emerald-200' : 'border-slate-200 bg-white'}">
+      <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ok ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${ok ? '✓' : i + 1}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold ${ok ? 'text-slate-500 line-through' : 'text-slate-900'}">${esc(v.titulo)}</div>
+        <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1"><span>👤 Responsável: <b>${esc(v.area)}${v.quem ? ' · ' + esc(v.quem) : ''}</b></span>${ok ? `<span>✅ Concluído em ${fmtDateTime(st.concluidoEm)}${st.por ? ' · ' + esc(st.por) : ''}</span>` : ''}</div>
+      </div>
+      ${isFranqueadora() ? (ok ? btnSec('Reabrir', `data-action="venda-toggle" data-vid="${v.id}"`) : btn('✓ Concluir', `data-action="venda-toggle" data-vid="${v.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white')) : ''}
+    </div>`; }).join('');
+  return `${pageTitle('Vendas', 'Checklist comercial antes do kickoff, com a área responsável por cada item.')}
+    ${card(`<div class="p-5"><div class="flex justify-between text-sm font-bold"><span>${feitos} de ${itens.length} itens</span><span class="text-brand-600">${Math.round(feitos / itens.length * 100)}%</span></div><div class="mt-2">${barra(Math.round(feitos / itens.length * 100), '#4f46e5', 'h-3')}</div></div>`, 'mb-5')}
+    <div class="space-y-3">${lista}</div>
+    ${isFranqueado() ? '<p class="text-xs text-slate-400 mt-3">Estes itens são conduzidos pela franqueadora. Você acompanha o andamento por aqui.</p>' : ''}`;
+}
+
+/* ---------- Kickoff ---------- */
+function viewKickoff(unit) {
+  const itens = getKickoffItens(); const feitos = kickoffFeitos(unit); const pct = Math.round(feitos / itens.length * 100);
+  const lista = itens.map((it, i) => { const ok = kickoffFeito(unit, it); const st = (unit.kickoff && unit.kickoff[it.id]) || {};
+    let detalhe = '', acao = '';
+    if (it.tipo === 'reuniao') {
+      if (ok) detalhe = `<span>📅 Realizada em ${fmtDate(unit.cofEm)}</span>`;
+      else if (isFranqueadora()) acao = btn('Registrar reunião realizada', 'data-action="confirmar-cof"', 'bg-emerald-600 hover:bg-emerald-700 text-white');
+    } else if (it.tipo === 'nome') {
+      if (isFranqueadora()) acao = `<form data-form="kickoff-nome" data-iid="${it.id}" class="flex gap-2 w-full sm:w-auto"><input name="valor" value="${esc(st.valor || '')}" placeholder="Nome do consultor" required class="flex-1 sm:w-56 px-3 py-2 rounded-xl border border-slate-300 text-sm"><button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-900 text-white">Salvar</button></form>`;
+      else detalhe = `<span>👤 <b>${ok ? esc(st.valor) : 'A definir'}</b></span>`;
+      if (ok && st.concluidoEm) detalhe += `<span>✏️ Atualizado em ${fmtDateTime(st.concluidoEm)}${st.por ? ' · ' + esc(st.por) : ''}</span>`;
+    } else {
+      if (ok) detalhe = `<span>✅ Concluído em ${fmtDateTime(st.concluidoEm)}${st.por ? ' · ' + esc(st.por) : ''}</span>`;
+      if (isFranqueadora()) acao = ok ? btnSec('Reabrir', `data-action="kickoff-toggle" data-iid="${it.id}"`) : btn('✓ Concluir', `data-action="kickoff-toggle" data-iid="${it.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white');
+    }
+    return `<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-2xl border ${ok ? 'bg-emerald-50/40 border-emerald-200' : 'border-slate-200 bg-white'}">
+      <div class="flex items-center gap-4 flex-1 min-w-0">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ok ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${ok ? '✓' : i + 1}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold ${ok && it.tipo !== 'nome' ? 'text-slate-500 line-through' : 'text-slate-900'}">${esc(it.titulo)}${it.tipo === 'nome' && ok && isFranqueadora() ? ': ' + esc(st.valor) : ''}</div>
+          ${it.desc ? `<div class="text-xs text-slate-500 mt-0.5">${esc(it.desc)}</div>` : ''}
+          ${detalhe ? `<div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">${detalhe}</div>` : ''}
+        </div>
+      </div>${acao}
+    </div>`; }).join('');
+  return `${pageTitle('Kickoff', 'Reunião introdutória, agendas, EAD e definição do consultor de campo.')}
+    ${!vendasConcluidas(unit) ? `<div class="mb-5 p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-sm text-indigo-800">A etapa de Vendas ainda tem itens pendentes. <a href="${link('vendas')}" class="font-semibold underline">Ver checklist de vendas</a></div>` : ''}
+    ${card(`<div class="p-5"><div class="flex justify-between text-sm font-bold"><span>${feitos} de ${itens.length} itens</span><span class="text-brand-600">${pct}%</span></div><div class="mt-2">${barra(pct, '#4f46e5', 'h-3')}</div></div>`, 'mb-5')}
+    <div class="space-y-3">${lista}</div>
+    ${isFranqueado() ? '<p class="text-xs text-slate-400 mt-3">Estes itens são registrados pela franqueadora. Você acompanha o andamento por aqui.</p>' : ''}`;
+}
+
+/* ---------- Pós-inauguração ---------- */
+function viewPos(unit) {
+  const inau = unit.inauguracao.concluida; const itens = itensPosInauguracao(unit);
+  const feitos = itens.filter(i => i.ok).length; const pct = Math.round(feitos / itens.length * 100);
+  const lista = itens.map((it, i) => {
+    const atras = inau && !it.ok && it.prazo && it.prazo < todayISO();
+    const st = it.reuniao ? posReuniao(unit, it.id) : null;
+    let resp, acao = '';
+    if (it.tarefa) {
+      resp = `<span>👤 Responsável: <b>${it.tarefa.resp === 'franqueadora' ? 'Franqueadora' : 'Franqueado'}${it.tarefa.quem ? ' · ' + esc(it.tarefa.quem) : ''}</b></span><span>${it.frente.emoji} Tarefa da frente ${esc(it.frente.nome)}</span>`;
+      if (inau) acao = `<a href="${link('frente/' + it.frente.id)}#tarefa-${it.id}" class="text-sm font-semibold text-brand-600 hover:underline whitespace-nowrap">Abrir tarefa →</a>`;
+    } else {
+      resp = `<span>👤 Responsável: <b>${esc(it.responsavel)}</b></span>`;
+      if (it.ok) resp += `<span>✅ Realizada em ${fmtDateTime(st.concluidoEm)}${st.por ? ' · ' + esc(st.por) : ''}</span>`;
+      if (isFranqueadora() && inau) acao = it.ok ? btnSec('Reabrir', `data-action="pos-toggle" data-iid="${it.id}"`) : btn('✓ Reunião realizada', `data-action="pos-toggle" data-iid="${it.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white');
+    }
+    const prazo = it.prazo ? `<span class="${atras ? 'text-rose-600 font-semibold' : ''}">📅 ${it.reuniao ? 'Data prevista' : 'Prazo'}: ${fmtDate(it.prazo)}${atras ? ` (${diffDays(todayISO(), it.prazo)} dias de atraso)` : ''}</span>`
+      : `<span>📅 ${it.reuniao ? it.reuniao.dias : it.tarefa.prazoDias || 0} dias após a inauguração</span>`;
+    return `<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-2xl border ${it.ok ? 'bg-emerald-50/40 border-emerald-200' : atras ? 'border-rose-200 bg-white' : 'border-slate-200 bg-white'} ${inau ? '' : 'opacity-60'}">
+      <div class="flex items-center gap-4 flex-1 min-w-0">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${it.ok ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}">${it.ok ? '✓' : i + 1}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2"><span class="font-bold ${it.ok ? 'text-slate-500 line-through' : 'text-slate-900'}">${esc(it.titulo)}</span>${atras ? badge('Prazo vencido', 'bg-rose-600 text-white') : ''}</div>
+          <div class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">${resp}${prazo}</div>
+        </div>
+      </div>${acao}
+    </div>`; }).join('');
+  return `${pageTitle('Pós-inauguração', 'Acompanhamento da unidade depois da Festa de Inauguração.')}
+    ${!inau ? '<div class="mb-5 p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">🔒 Esta etapa começa depois da Festa de Inauguração. As datas das reuniões são calculadas a partir da data da inauguração. </div>' : ''}
+    ${card(`<div class="p-5"><div class="flex justify-between text-sm font-bold"><span>${feitos} de ${itens.length} itens</span><span class="text-brand-600">${pct}%</span></div><div class="mt-2">${barra(pct, '#ec4899', 'h-3')}</div></div>`, 'mb-5')}
+    <div class="space-y-3">${lista}</div>`;
 }
 
 /* ---------- Documentos ---------- */
@@ -412,18 +511,23 @@ function viewTimeline(unit) {
 }
 
 /* ---------- Painel da franqueadora ---------- */
-const filtros = { busca: '', status: '', etapa: '' };
+const filtros = { busca: '', status: '', etapa: '', kpi: '' };
+// Critérios dos cards do painel: cada chave filtra a lista de unidades conforme o texto do card.
+const KPIS = {
+  implantacao: { titulo: 'Unidades em implantação', emoji: '🚧', cls: 'bg-brand-50 text-brand-700', ativo: 'border-brand-500 ring-2 ring-brand-200', filtro: u => !u.inauguracao.concluida },
+  ativas: { titulo: 'Unidades ativas', emoji: '🏪', cls: 'bg-emerald-50 text-emerald-700', ativo: 'border-emerald-500 ring-2 ring-emerald-200', filtro: u => u.inauguracao.concluida },
+  validacao: { titulo: 'Aguardando validação', emoji: '✅', cls: 'bg-amber-50 text-amber-700', ativo: 'border-amber-500 ring-2 ring-amber-200', filtro: u => validacoesPendentes(u).length > 0 },
+  vencido: { titulo: 'Com prazo vencido', emoji: '⏰', cls: 'bg-rose-50 text-rose-700', ativo: 'border-rose-500 ring-2 ring-rose-200', filtro: u => tarefasAtrasadas(u).length > 0 },
+  abertura: { titulo: 'Próximas da abertura', emoji: '🎉', cls: 'bg-pink-50 text-pink-700', ativo: 'border-pink-500 ring-2 ring-pink-200', filtro: u => !u.inauguracao.concluida && treinamentoLiberado(u) },
+};
 function viewFranqueadora() {
   const us = DB.unidades;
   const emImpl = us.filter(u => !u.inauguracao.concluida);
-  const stats = [
-    ['Unidades em implantação', emImpl.length, '🚧', 'bg-brand-50 text-brand-700'],
-    ['Unidades ativas', us.filter(u => u.inauguracao.concluida).length, '🏪', 'bg-emerald-50 text-emerald-700'],
-    ['Aguardando validação', us.reduce((n, u) => n + validacoesPendentes(u).length, 0), '✅', 'bg-amber-50 text-amber-700'],
-    ['Com prazo vencido', us.filter(u => tarefasAtrasadas(u).length).length, '⏰', 'bg-rose-50 text-rose-700'],
-    ['Próximas da abertura', us.filter(u => !u.inauguracao.concluida && treinamentoLiberado(u)).length, '🎉', 'bg-pink-50 text-pink-700'],
-  ];
+  const contagem = { validacao: us.reduce((n, u) => n + validacoesPendentes(u).length, 0) };
+  const stats = Object.entries(KPIS).map(([k, c]) => [k, c, contagem[k] !== undefined ? contagem[k] : us.filter(c.filtro).length]);
+  const kpiAtivo = KPIS[filtros.kpi];
   let lista = us.map(u => ({ u, prog: progressoUnidade(u), st: statusUnidade(u), etapa: etapaUnidade(u), prox: proximaAcao(u), franq: getUser(u.franqueadoId) }));
+  if (kpiAtivo) lista = lista.filter(x => kpiAtivo.filtro(x.u));
   if (filtros.busca) lista = lista.filter(x => (x.u.nome + ' ' + x.u.cidade + ' ' + (x.franq ? x.franq.nome : '')).toLowerCase().includes(filtros.busca.toLowerCase()));
   if (filtros.status) lista = lista.filter(x => x.st.key === filtros.status);
   if (filtros.etapa) lista = lista.filter(x => x.etapa.key === filtros.etapa);
@@ -444,13 +548,13 @@ function viewFranqueadora() {
     ${valids.length ? `<div class="space-y-2">${valids.slice(0, 5).map(v => `<div class="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50/50"><div class="flex-1 min-w-[200px] text-sm"><b>${esc(v.u.nome)}</b> · ${v.frente.emoji} ${esc(v.tarefa.titulo)}<div class="text-xs text-slate-500">enviada em ${fmtDateTime(v.st.enviadoEm)}</div></div><a href="#/u/${v.u.id}/frente/${v.frente.id}#tarefa-${v.tarefa.id}" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100">Revisar</a>${btn('Aprovar', `data-action="aprovar" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white !px-3 !py-1.5 !text-xs')}${btn('Devolver', `data-action="devolver" data-uid="${v.u.id}" data-fid="${v.frente.id}" data-tid="${v.tarefa.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 !px-3 !py-1.5 !text-xs')}</div>`).join('')}</div>` : '<p class="text-sm text-slate-400">Nenhuma entrega aguardando validação.</p>'}</div>`);
 
   return `${pageTitle('Painel central de todas as unidades', 'Visão gerencial para acompanhar andamento, atrasos, pendências e necessidade de apoio.', (isAdmin() ? btnSec('⚙️ Administração', `onclick="location.hash='#/admin'"`) : '') + btnSec('📊 Exportar relatório', 'data-action="exportar-geral"'))}
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">${stats.map(([t, n, e, c]) => `<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"><div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg ${c}">${e}</div><div class="text-3xl font-extrabold text-slate-900 mt-2">${n}</div><div class="text-xs text-slate-500">${t}</div></div>`).join('')}</div>
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">${stats.map(([k, c, n]) => `<button type="button" data-action="kpi" data-kpi="${k}" title="${filtros.kpi === k ? 'Clique para remover o filtro' : 'Clique para ver somente estas unidades'}" class="text-left bg-white rounded-2xl border shadow-sm p-4 transition hover:shadow-md hover:-translate-y-0.5 ${filtros.kpi === k ? c.ativo : 'border-slate-200'}"><div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg ${c.cls}">${c.emoji}</div><div class="text-3xl font-extrabold text-slate-900 mt-2">${n}</div><div class="text-xs text-slate-500">${c.titulo}</div></button>`).join('')}</div>
     <div class="grid 2xl:grid-cols-3 gap-5">
       <div class="2xl:col-span-2">${card(`<div class="p-4 border-b flex flex-col sm:flex-row gap-2">
         <input data-filter="busca" value="${esc(filtros.busca)}" placeholder="🔍 Buscar unidade, cidade ou franqueado" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:border-brand-500">
-        <select data-filter="etapa" class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"><option value="">Todas as etapas</option>${[['cof', 'Aguardando COF'], ['frentes', 'Frentes em execução'], ['treinamento', 'Treinamento'], ['abertura', 'Abertura de loja'], ['inaugurada', 'Inaugurada']].map(([k, t]) => `<option value="${k}" ${filtros.etapa === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-        <select data-filter="status" class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"><option value="">Todos os status</option>${[['em_andamento', 'Em andamento'], ['atencao', 'Atenção'], ['validacao', 'Aguardando validação'], ['aguardando_cof', 'Aguardando COF'], ['inaugurada', 'Inaugurada']].map(([k, t]) => `<option value="${k}" ${filtros.status === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-      </div>${tabela}`)}</div>
+        <select data-filter="etapa" class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"><option value="">Todas as etapas</option>${[['vendas', 'Vendas'], ['cof', 'Kickoff'], ['frentes', 'Frentes em execução'], ['treinamento', 'Treinamento'], ['abertura', 'Abertura de loja'], ['pos_inauguracao', 'Pós-inauguração'], ['inaugurada', 'Inaugurada']].map(([k, t]) => `<option value="${k}" ${filtros.etapa === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <select data-filter="status" class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"><option value="">Todos os status</option>${[['em_andamento', 'Em andamento'], ['atencao', 'Atenção'], ['validacao', 'Aguardando validação'], ['aguardando_cof', 'Aguardando kickoff'], ['inaugurada', 'Inaugurada']].map(([k, t]) => `<option value="${k}" ${filtros.status === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      </div>${kpiAtivo ? `<div class="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 text-xs text-slate-600"><span>Mostrando: <b>${kpiAtivo.emoji} ${kpiAtivo.titulo}</b> · ${lista.length} unidade(s)</span><button type="button" data-action="kpi" data-kpi="${filtros.kpi}" class="ml-auto font-semibold text-brand-600 hover:underline">✕ Limpar filtro</button></div>` : ''}${tabela}`)}</div>
       <div class="space-y-5">${validacoes}${card(`<div class="p-5"><div class="font-bold text-slate-900 mb-3">🗺️ Onde cada unidade está</div><div class="space-y-3">${emImpl.map(u => `<a href="#/u/${u.id}/jornada" class="block"><div class="flex justify-between text-xs mb-1"><span class="font-semibold">${esc(u.nome)}</span><span class="text-slate-500">${esc(etapaUnidade(u).label)}</span></div><div class="flex gap-1">${getFrentes().map(f => { const p = progressoFrente(u, f.id); return `<div class="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden" title="${esc(f.curto)}: ${p.pct}%"><div class="h-full" style="width:${p.pct}%;background:${f.cor}"></div></div>`; }).join('')}</div></a>`).join('')}</div></div>`)}</div>
     </div>`;
 }
@@ -497,10 +601,13 @@ function viewRelatorio(unit) {
   const prog = progressoUnidade(unit); const franq = getUser(unit.franqueadoId);
   return `<div class="no-print">${pageTitle('Relatório da implantação', 'Registro com datas, responsáveis e etapas concluídas.', btnSec('🖨️ Imprimir / salvar PDF', 'onclick="window.print()"') + btnSec('⬇️ Baixar JSON', `data-action="exportar-unidade" data-uid="${unit.id}"`))}</div>
     ${card(`<div class="p-6 md:p-8">
-      <div class="flex flex-col md:flex-row md:justify-between gap-3 border-b pb-5 mb-5"><div><div class="text-[10px] font-bold tracking-widest text-brand-600">${esc(DB.config.marca).toUpperCase()} · RELATÓRIO DE IMPLANTAÇÃO</div><h2 class="text-2xl font-extrabold">${esc(unit.nome)}</h2><div class="text-sm text-slate-500">${esc(unit.cidade)} · Franqueado: ${esc(franq ? franq.nome : '—')}</div></div><div class="text-sm text-right"><div>Contrato: <b>${fmtDate(unit.contratoEm)}</b></div><div>COF: <b>${fmtDate(unit.cofEm)}</b></div><div>Inauguração: <b>${unit.inauguracao.concluida ? fmtDate(unit.inauguracao.data) : 'pendente'}</b></div><div>Progresso: <b>${prog.pct}%</b> · Etapa: <b>${esc(etapaUnidade(unit).label)}</b></div></div></div>
+      <div class="flex flex-col md:flex-row md:justify-between gap-3 border-b pb-5 mb-5"><div><div class="text-[10px] font-bold tracking-widest text-brand-600">${esc(DB.config.marca).toUpperCase()} · RELATÓRIO DE IMPLANTAÇÃO</div><h2 class="text-2xl font-extrabold">${esc(unit.nome)}</h2><div class="text-sm text-slate-500">${esc(unit.cidade)} · Franqueado: ${esc(franq ? franq.nome : '—')}</div></div><div class="text-sm text-right"><div>Contrato: <b>${fmtDate(unit.contratoEm)}</b></div><div>Kickoff: <b>${fmtDate(unit.cofEm)}</b></div><div>Consultor de campo: <b>${esc(consultorCampo(unit) || '—')}</b></div><div>Inauguração: <b>${unit.inauguracao.concluida ? fmtDate(unit.inauguracao.data) : 'pendente'}</b></div><div>Progresso: <b>${prog.pct}%</b> · Etapa: <b>${esc(etapaUnidade(unit).label)}</b></div></div></div>
       ${getFrentes().map(f => { const p = progressoFrente(unit, f.id); return `<div class="mb-5"><div class="font-bold flex items-center gap-2">${f.emoji} ${esc(f.nome)} <span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background:${f.corSuave};color:${f.cor}">${p.done}/${p.total}</span></div><table class="w-full text-sm mt-2"><tbody class="divide-y">${f.tarefas.map(t => { const st = taskState(unit, f.id, t.id); return `<tr><td class="py-1.5 pr-2 w-6">${st.status === 'concluido' ? '✅' : st.status === 'em_validacao' ? '📤' : st.status === 'devolvido' ? '↩️' : '⬜'}</td><td class="py-1.5">${esc(t.titulo)}</td><td class="py-1.5 text-slate-500 text-xs text-right whitespace-nowrap">${st.status === 'concluido' ? fmtDateTime(st.concluidoEm) + (st.aprovadoPor ? ' · ' + esc(st.aprovadoPor) : '') : 'prazo ' + fmtDate(prazoTarefa(unit, t))}</td></tr>`; }).join('')}</tbody></table></div>`; }).join('')}
+      <div class="mb-5"><div class="font-bold">✍️ Vendas</div><ul class="text-sm mt-1 space-y-0.5">${getVendasItens().map(v => `<li>${vendaFeita(unit, v.id) ? '✅' : '⬜'} ${esc(v.titulo)} <span class="text-slate-400 text-xs">· ${esc(v.area)}${v.quem ? ' (' + esc(v.quem) + ')' : ''}${vendaFeita(unit, v.id) ? ' · ' + fmtDateTime(unit.vendas[v.id].concluidoEm) : ''}</span></li>`).join('')}</ul></div>
+      <div class="mb-5"><div class="font-bold">🤝 Kickoff</div><ul class="text-sm mt-1 space-y-0.5">${getKickoffItens().map(i => `<li>${kickoffFeito(unit, i) ? '✅' : '⬜'} ${esc(i.titulo)}${i.tipo === 'nome' && consultorCampo(unit) ? ': ' + esc(consultorCampo(unit)) : ''}${i.tipo === 'reuniao' && unit.cofEm ? ' <span class="text-slate-400 text-xs">· ' + fmtDate(unit.cofEm) + '</span>' : ''}</li>`).join('')}</ul></div>
       <div class="mb-5"><div class="font-bold">🎓 Treinamento</div><div class="text-sm text-slate-600 mt-1">${unit.treinamento.agenda ? `Realizado em ${fmtDate(unit.treinamento.agenda.data)} · ${esc(unit.treinamento.agenda.local)} · instrutor ${esc(unit.treinamento.agenda.instrutor || '—')}` : 'Não agendado.'} · Módulos: ${modulosFeitos(unit)}/${DB.modulos.length} · Presença: ${unit.treinamento.presenca ? 'confirmada' : 'pendente'}</div></div>
       <div class="mb-5"><div class="font-bold">🏪 Abertura</div><ul class="text-sm mt-1 space-y-0.5">${itensAbertura(unit).map(i => `<li>${i.ok ? '✅' : '⬜'} ${esc(i.titulo)}</li>`).join('')}</ul></div>
+      <div class="mb-5"><div class="font-bold">📈 Pós-inauguração</div><ul class="text-sm mt-1 space-y-0.5">${itensPosInauguracao(unit).map(i => `<li>${i.ok ? '✅' : '⬜'} ${esc(i.titulo)}${i.responsavel ? ' <span class="text-slate-400 text-xs">· ' + esc(i.responsavel) + '</span>' : ''}${i.prazo ? ' <span class="text-slate-400 text-xs">· ' + fmtDate(i.prazo) + '</span>' : ''}</li>`).join('')}</ul></div>
       <div><div class="font-bold">🕓 Histórico</div><ul class="text-sm mt-1 space-y-1">${unit.timeline.slice(0, 40).map(e => `<li class="text-slate-600"><span class="text-slate-400">${fmtDateTime(e.data)}</span> · ${esc(e.usuario)}: ${esc(e.texto)}</li>`).join('')}</ul></div>
     </div>`)}`;
 }
@@ -508,10 +615,10 @@ function viewRelatorio(unit) {
 /* ---------- Ajuda ---------- */
 function viewAjuda() {
   const itens = [
-    ['🗺️', 'Como funciona a jornada?', 'Após a assinatura do contrato e a reunião da COF, seis frentes começam em paralelo. Cada frente tem um personagem que avança a cada tarefa concluída. Quando todas terminam, os personagens se encontram no treinamento e a loja segue para a abertura e a festa de inauguração.'],
+    ['🗺️', 'Como funciona a jornada?', 'Após a assinatura do contrato e a reunião introdutória (kickoff), as frentes de implantação começam em paralelo. Cada frente tem um personagem que avança a cada tarefa concluída. Quando todas terminam, os personagens se encontram no treinamento e a loja segue para a abertura e a festa de inauguração.'],
     ['✓', 'O que acontece quando marco uma tarefa?', 'Tarefas simples ficam concluídas na hora. Tarefas que exigem validação vão para a franqueadora, que pode aprovar ou devolver para ajuste com um comentário.'],
     ['📎', 'Como anexo documentos?', 'Dentro de cada tarefa use "Anexar arquivo". Todos os anexos ficam reunidos na página Documentos.'],
-    ['⏰', 'Como são calculados os prazos?', 'Cada tarefa tem um prazo em dias contado a partir da data da COF. Tarefas vencidas aparecem em vermelho e mudam o status da unidade para "Atenção".'],
+    ['⏰', 'Como são calculados os prazos?', 'Cada tarefa tem um prazo em dias contado a partir da data da reunião introdutória (kickoff). Tarefas vencidas aparecem em vermelho e mudam o status da unidade para "Atenção".'],
     ['🔔', 'Onde vejo os avisos?', 'No sino do topo da página: novas tarefas, prazos próximos, comentários, devoluções e aprovações.'],
   ];
   return `${pageTitle('Ajuda', 'Dúvidas frequentes sobre a plataforma.')}<div class="space-y-3">${itens.map(([e, t, d]) => card(`<details class="p-5 group"><summary class="flex items-center gap-3 font-bold"><span class="text-xl">${e}</span>${t}<span class="ml-auto text-slate-400 group-open:rotate-180 transition">▾</span></summary><p class="text-sm text-slate-600 mt-3 pl-9">${d}</p></details>`)).join('')}</div>

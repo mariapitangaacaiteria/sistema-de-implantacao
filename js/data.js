@@ -99,6 +99,28 @@ const FRENTES_PADRAO = [
     ],
   },
   {
+    id: 'marketing', nome: 'Marketing Inaugural', curto: 'Marketing', emoji: '📣',
+    cor: '#ec4899', corSuave: '#fce7f3', personagem: 'Megafone',
+    descricao: 'Reunião de marketing, brindes, artes, redes sociais e tráfego pago para a inauguração.',
+    responsavel: 'Franqueado e equipe de marketing', apoio: 'Equipe de marketing da franqueadora (Lais e Sérgio)',
+    tarefas: [
+      { id: 'reuniao',  titulo: 'Realização da Reunião de MKT Inaugural', prazoDias: 15, resp: 'franqueadora',
+        instrucoes: 'A equipe de marketing da franqueadora reúne o franqueado para alinhar o plano de inauguração.' },
+      { id: 'brindes',  titulo: 'Solicitação de Brindes e Pitanguinha', prazoDias: 40,
+        instrucoes: 'Solicite à franqueadora os brindes e a Pitanguinha para a inauguração.' },
+      { id: 'desconto', titulo: 'Solicitação de Desconto', prazoDias: 45,
+        instrucoes: 'Solicite à franqueadora as promoções e descontos que valerão na inauguração.' },
+      { id: 'artes',    titulo: 'Solicitação de Artes', prazoDias: 45,
+        instrucoes: 'Solicite as artes de divulgação (posts, panfletos, cardápios e fachada) à equipe de marketing.' },
+      { id: 'instagram', titulo: 'Instagram (primeiras postagens)', prazoDias: 75, resp: 'franqueadora', quem: 'Lais',
+        instrucoes: 'Lais publica as primeiras postagens da unidade no Instagram antes da inauguração.' },
+      { id: 'trafego',  titulo: 'Tráfego Pago', prazoDias: 75, resp: 'franqueadora', quem: 'Sérgio',
+        instrucoes: 'Sérgio configura e ativa as campanhas de tráfego pago da inauguração.' },
+      { id: 'maps',     titulo: 'Google Maps (pós-inauguração)', prazoDias: 7, resp: 'franqueadora', quem: 'Lais', pos: true,
+        instrucoes: 'Até 7 dias após a inauguração, Lais cadastra e valida a unidade no Google Maps.' },
+    ],
+  },
+  {
     id: 'abertura', nome: 'Abertura de Loja', curto: 'Abertura', emoji: '🏪',
     cor: '#f97316', corSuave: '#ffedd5', personagem: 'Chave da loja',
     descricao: 'Preparação final da loja e validação do consultor para o treinamento.',
@@ -112,6 +134,32 @@ const FRENTES_PADRAO = [
         instrucoes: 'O consultor faz a visita técnica e libera a unidade para o treinamento da equipe.' },
     ],
   },
+];
+
+// Checklist da etapa Vendas (antes do kickoff). "quem" é a pessoa ou área responsável.
+const VENDAS_PADRAO = [
+  { id: 'candidato',      titulo: 'Validação do candidato',            area: 'Assistente de vendas', quem: 'Débora' },
+  { id: 'negociacao',     titulo: 'Reunião de negociação',             area: 'Diretoria comercial' },
+  { id: 'emissao_cof',    titulo: 'Emissão da COF',                    area: 'Diretoria de marketing / jurídico' },
+  { id: 'assinatura_cof', titulo: 'Assinatura da COF',                 area: 'Diretoria de marketing / jurídico' },
+  { id: 'cadastro',       titulo: 'Cadastro da unidade nos sistemas',  area: 'Gerência de operações' },
+  { id: 'grupo',          titulo: 'Criação do grupo da unidade',       area: 'CRM' },
+];
+
+// Checklist da etapa Kickoff. "reuniao" libera as frentes (define unit.cofEm); "nome" guarda um texto por unidade.
+const KICKOFF_PADRAO = [
+  { id: 'reuniao',           titulo: 'Reunião introdutória', tipo: 'reuniao', desc: 'Libera as frentes de implantação. Os prazos das tarefas contam a partir desta data.' },
+  { id: 'agenda_financeiro', titulo: 'Agenda com o financeiro' },
+  { id: 'agenda_consultor',  titulo: 'Agenda com o consultor' },
+  { id: 'ead',               titulo: 'Treinamento introdutório EAD (módulo financeiro e módulo expedição)' },
+  { id: 'consultor',         titulo: 'Consultor de campo', tipo: 'nome', desc: 'Nome do consultor de campo responsável por esta unidade.' },
+];
+
+// Checklist da Pós-inauguração. "dias" conta a partir da data da inauguração.
+const POS_PADRAO = [
+  { id: 'acomp15', titulo: 'Reunião de acompanhamento 15 dias', dias: 15, resp: 'Consultor de campo' },
+  { id: 'acomp30', titulo: 'Reunião de acompanhamento 30 dias', dias: 30, resp: 'Consultor de campo' },
+  { id: 'acomp60', titulo: 'Reunião de acompanhamento 60 dias', dias: 60, resp: 'Consultor de campo' },
 ];
 
 const MODULOS_PADRAO = [
@@ -132,10 +180,14 @@ function _unidade(cfg) {
     id: cfg.id, nome: cfg.nome, cidade: cfg.cidade, franqueadoId: cfg.franqueadoId,
     contratoEm: cfg.contratoEm, cofEm: cfg.cofEm || null,
     tarefas: {}, timeline: [], notificacoes: [],
+    vendas: {}, kickoff: {}, pos: {},
     treinamento: { agenda: cfg.agenda || null, modulos: {}, presenca: false, concluidoEm: null },
     abertura: { validacaoFinal: false, validacaoFinalEm: null },
     inauguracao: { data: cfg.inauguracaoData || null, concluida: !!cfg.inaugurada, concluidaEm: cfg.inaugurada ? cfg.inauguracaoData : null },
   };
+  (cfg.vendasFeitas || VENDAS_PADRAO.map(v => v.id)).forEach((vid, i) => u.vendas[vid] = { concluidoEm: _diasAtras(Math.max(0, 10 - i)) + 'T10:00:00', por: 'Equipe de vendas' });
+  if (cfg.cofEm) { ['agenda_financeiro', 'agenda_consultor', 'ead'].forEach(k => u.kickoff[k] = { concluidoEm: cfg.cofEm + 'T14:00:00', por: 'Carla Mendes' });
+    if (cfg.consultor) u.kickoff.consultor = { valor: cfg.consultor, concluidoEm: cfg.cofEm + 'T14:00:00', por: 'Carla Mendes' }; }
   const feitas = cfg.feitas || {};
   const validacao = cfg.emValidacao || {};
   FRENTES_PADRAO.forEach(f => {
@@ -147,14 +199,15 @@ function _unidade(cfg) {
       u.tarefas[f.id][tid] = { status: 'em_validacao', enviadoEm: _diasAtras(2) + 'T15:30:00', anexos: [], comentarios: [] };
     });
   });
+  if (cfg.inaugurada) u.pos.acomp15 = { concluidoEm: _diasAtras(25) + 'T10:00:00', por: 'Carla Mendes' };
   if (cfg.modulosFeitos) cfg.modulosFeitos.forEach(m => u.treinamento.modulos[m] = true);
   if (cfg.treinamentoConcluido) { MODULOS_PADRAO.forEach(m => u.treinamento.modulos[m.id] = true); u.treinamento.presenca = true; u.treinamento.concluidoEm = _diasAtras(10) + 'T18:00:00'; }
   if (cfg.validacaoFinal) { u.abertura.validacaoFinal = true; u.abertura.validacaoFinalEm = _diasAtras(45) + 'T11:00:00'; }
   if (cfg.inaugurada) {
-    FRENTES_PADRAO.forEach(f => f.tarefas.forEach(t => u.tarefas[f.id][t.id] = { status: 'concluido', concluidoEm: _diasAtras(60) + 'T10:00:00', anexos: [], comentarios: [] }));
+    FRENTES_PADRAO.forEach(f => f.tarefas.forEach(t => (!t.pos || cfg.posConcluido) && (u.tarefas[f.id][t.id] = { status: 'concluido', concluidoEm: _diasAtras(60) + 'T10:00:00', anexos: [], comentarios: [] })));
   }
   u.timeline.push({ id: 'ev_' + cfg.id + '_1', data: cfg.contratoEm + 'T09:00:00', usuario: 'Sistema', perfil: 'sistema', texto: 'Contrato de franquia assinado. Unidade criada.', tipo: 'marco' });
-  if (cfg.cofEm) u.timeline.push({ id: 'ev_' + cfg.id + '_2', data: cfg.cofEm + 'T09:00:00', usuario: 'Carla Mendes', perfil: 'franqueadora', texto: 'Reunião da COF realizada. Frentes de implantação liberadas.', tipo: 'marco' });
+  if (cfg.cofEm) u.timeline.push({ id: 'ev_' + cfg.id + '_2', data: cfg.cofEm + 'T09:00:00', usuario: 'Carla Mendes', perfil: 'franqueadora', texto: 'Reunião introdutória (kickoff) realizada. Frentes de implantação liberadas.', tipo: 'marco' });
   u.timeline.sort((a, b) => b.data.localeCompare(a.data));
   return u;
 }
@@ -173,25 +226,25 @@ function criarBancoDemo() {
 
   const unidades = [
     _unidade({
-      id: 'un_fortaleza', nome: 'Unidade Fortaleza', cidade: 'Fortaleza - CE', franqueadoId: 'u_fort',
+      id: 'un_fortaleza', consultor: 'Carla Mendes', nome: 'Unidade Fortaleza', cidade: 'Fortaleza - CE', franqueadoId: 'u_fort',
       contratoEm: _diasAtras(70), cofEm: _diasAtras(60),
       feitas: {
         projeto: ['medidas'], investimento: ['recebimento', 'orientacao', 'lista', 'compras'],
         pdv: ['docs', 'envio', 'agendamento'], contratacao: ['quadro', 'vagas', 'entrevistas'],
-        legal: ['lista', 'cnpj', 'alvara', 'sanitario'], abertura: [],
+        legal: ['lista', 'cnpj', 'alvara', 'sanitario'], marketing: ['reuniao', 'brindes'], abertura: [],
       },
       emValidacao: { projeto: ['planta'] },
     }),
     _unidade({
-      id: 'un_sobral', nome: 'Unidade Sobral', cidade: 'Sobral - CE', franqueadoId: 'u_sob',
+      id: 'un_sobral', consultor: 'Rodrigo Teixeira', nome: 'Unidade Sobral', cidade: 'Sobral - CE', franqueadoId: 'u_sob',
       contratoEm: _diasAtras(58), cofEm: _diasAtras(50),
       feitas: {
         projeto: ['medidas', 'planta'], investimento: ['recebimento', 'orientacao'],
-        pdv: ['docs'], contratacao: ['quadro'], legal: ['lista', 'cnpj'], abertura: [],
+        pdv: ['docs'], contratacao: ['quadro'], legal: ['lista', 'cnpj'], marketing: ['reuniao'], abertura: [],
       },
     }),
     _unidade({
-      id: 'un_juazeiro', nome: 'Unidade Juazeiro do Norte', cidade: 'Juazeiro do Norte - CE', franqueadoId: 'u_jua',
+      id: 'un_juazeiro', consultor: 'Carla Mendes', nome: 'Unidade Juazeiro do Norte', cidade: 'Juazeiro do Norte - CE', franqueadoId: 'u_jua',
       contratoEm: _diasAtras(110), cofEm: _diasAtras(100),
       feitas: {
         projeto: ['medidas', 'planta', 'hidraulica', 'eletrica', 'cozinha', 'salao', 'obra'],
@@ -199,13 +252,14 @@ function criarBancoDemo() {
         pdv: ['docs', 'envio', 'agendamento', 'instalacao', 'teste'],
         contratacao: ['quadro', 'vagas', 'entrevistas', 'contratacao', 'registro'],
         legal: ['lista', 'cnpj', 'alvara', 'sanitario', 'bombeiros', 'validacao'],
+        marketing: ['reuniao', 'brindes', 'desconto', 'artes', 'instagram', 'trafego'],
         abertura: ['layout', 'estoque', 'validacao_treinamento'],
       },
       agenda: { data: _diasAtras(12), local: 'Loja Juazeiro do Norte', participantes: 'Marcos Pereira, gerente e 6 atendentes', instrutor: 'Carla Mendes' },
       treinamentoConcluido: true,
     }),
     _unidade({
-      id: 'un_aracati', nome: 'Unidade Aracati', cidade: 'Aracati - CE', franqueadoId: 'u_ara',
+      id: 'un_aracati', consultor: 'Rodrigo Teixeira', nome: 'Unidade Aracati', cidade: 'Aracati - CE', franqueadoId: 'u_ara',
       contratoEm: _diasAtras(100), cofEm: _diasAtras(95),
       feitas: {
         projeto: ['medidas', 'planta', 'hidraulica', 'eletrica', 'cozinha', 'salao', 'obra'],
@@ -213,13 +267,14 @@ function criarBancoDemo() {
         pdv: ['docs', 'envio', 'agendamento', 'instalacao', 'teste'],
         contratacao: ['quadro', 'vagas', 'entrevistas', 'contratacao', 'registro'],
         legal: ['lista', 'cnpj', 'alvara', 'sanitario', 'bombeiros', 'validacao'],
+        marketing: ['reuniao', 'brindes', 'desconto', 'artes', 'instagram', 'trafego'],
         abertura: ['layout', 'estoque', 'validacao_treinamento'],
       },
       agenda: { data: _diasFrente(3), local: 'Centro de treinamento da franqueadora', participantes: 'Fernanda Alves, gerente e 5 atendentes', instrutor: 'Carla Mendes' },
       modulosFeitos: ['cultura', 'atendimento'],
     }),
     _unidade({
-      id: 'un_crato', nome: 'Unidade Crato', cidade: 'Crato - CE', franqueadoId: 'u_cra',
+      id: 'un_crato', consultor: 'Ana Ribeiro', nome: 'Unidade Crato', cidade: 'Crato - CE', franqueadoId: 'u_cra',
       contratoEm: _diasAtras(200), cofEm: _diasAtras(190),
       agenda: { data: _diasAtras(55), local: 'Loja Crato', participantes: 'Paulo Santos e equipe', instrutor: 'Carla Mendes' },
       treinamentoConcluido: true, validacaoFinal: true, inaugurada: true, inauguracaoData: _diasAtras(40),
@@ -227,6 +282,7 @@ function criarBancoDemo() {
     _unidade({
       id: 'un_caucaia', nome: 'Unidade Caucaia', cidade: 'Caucaia - CE', franqueadoId: 'u_cau',
       contratoEm: _diasAtras(5), cofEm: null,
+      vendasFeitas: ['candidato', 'negociacao', 'emissao_cof', 'assinatura_cof'],
     }),
   ];
 
@@ -249,6 +305,9 @@ function criarBancoDemo() {
     users, unidades,
     frentes: JSON.parse(JSON.stringify(FRENTES_PADRAO)),
     modulos: JSON.parse(JSON.stringify(MODULOS_PADRAO)),
+    vendasItens: JSON.parse(JSON.stringify(VENDAS_PADRAO)),
+    kickoffItens: JSON.parse(JSON.stringify(KICKOFF_PADRAO)),
+    posItens: JSON.parse(JSON.stringify(POS_PADRAO)),
     config: { marca: 'Rede Sabor & Cia', treinamentoRequer: 'todas' },
   };
 }

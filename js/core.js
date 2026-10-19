@@ -9,8 +9,52 @@ const ctx = { unit: null, base: '' };   // unidade em contexto e prefixo de rota
 
 /* ---------- Armazenamento ---------- */
 function loadDB() {
-  try { const raw = localStorage.getItem(DB_KEY); if (raw) { DB = JSON.parse(raw); return; } } catch (e) { /* ignora */ }
+  try { const raw = localStorage.getItem(DB_KEY); if (raw) { DB = JSON.parse(raw); migrarDB(); return; } } catch (e) { /* ignora */ }
   DB = criarBancoDemo(); saveDB();
+}
+// Ajusta bancos salvos em versões anteriores (ex.: frentes novas adicionadas ao padrão).
+function migrarDB() {
+  let mudou = false;
+  FRENTES_PADRAO.forEach((fp, idx) => {
+    if (DB.frentes.some(f => f.id === fp.id)) return;
+    // Unidades que já tinham todas as frentes concluídas (ou já inauguradas) recebem a nova frente como concluída,
+    // para não voltarem a uma etapa anterior.
+    DB.unidades.forEach(u => {
+      const completa = u.inauguracao.concluida || (!!u.cofEm && DB.frentes.every(f => progressoFrente(u, f.id).completa));
+      u.tarefas[fp.id] = u.tarefas[fp.id] || {};
+      if (completa) fp.tarefas.forEach(t => u.tarefas[fp.id][t.id] = { status: 'concluido', concluidoEm: new Date().toISOString(), anexos: [], comentarios: [] });
+    });
+    const depois = FRENTES_PADRAO[idx + 1]; const pos = depois ? DB.frentes.findIndex(f => f.id === depois.id) : -1;
+    DB.frentes.splice(pos < 0 ? DB.frentes.length : pos, 0, JSON.parse(JSON.stringify(fp)));
+    mudou = true;
+  });
+  // Copia marcações novas do padrão (ex.: tarefa de pós-inauguração) para tarefas que já existiam.
+  FRENTES_PADRAO.forEach(fp => { const f = DB.frentes.find(x => x.id === fp.id); if (!f) return;
+    fp.tarefas.forEach(tp => { const t = f.tarefas.find(x => x.id === tp.id); if (t && tp.pos && !t.pos) { Object.assign(t, { pos: true, prazoDias: tp.prazoDias, titulo: tp.titulo, instrucoes: tp.instrucoes }); mudou = true; } }); });
+  // A primeira versão da frente de marketing tinha outra lista de tarefas; troca pela lista oficial.
+  const mkt = DB.frentes.find(f => f.id === 'marketing'), mktPadrao = FRENTES_PADRAO.find(f => f.id === 'marketing');
+  if (mkt && mktPadrao && mkt.tarefas.some(t => t.id === 'manual')) {
+    DB.unidades.forEach(u => {
+      const completa = u.inauguracao.concluida || (!!u.cofEm && DB.frentes.every(f => progressoFrente(u, f.id).completa));
+      u.tarefas.marketing = {};
+      if (completa) mktPadrao.tarefas.forEach(t => u.tarefas.marketing[t.id] = { status: 'concluido', concluidoEm: new Date().toISOString(), anexos: [], comentarios: [] });
+    });
+    Object.assign(mkt, JSON.parse(JSON.stringify(mktPadrao))); mudou = true;
+  }
+  // Checklist de vendas: unidades que já passaram do kickoff ficam com a etapa concluída.
+  if (!DB.vendasItens) { DB.vendasItens = JSON.parse(JSON.stringify(VENDAS_PADRAO)); mudou = true; }
+  DB.unidades.forEach(u => { if (u.vendas) return; u.vendas = {}; mudou = true;
+    if (u.cofEm) VENDAS_PADRAO.forEach(v => u.vendas[v.id] = { concluidoEm: u.contratoEm + 'T09:00:00', por: 'Sistema' }); });
+  // Checklist do kickoff: unidades que já tiveram a reunião ficam com as agendas e o EAD concluídos.
+  // O consultor de campo não é conhecido para dados antigos e precisa ser preenchido.
+  if (!DB.kickoffItens) { DB.kickoffItens = JSON.parse(JSON.stringify(KICKOFF_PADRAO)); mudou = true; }
+  DB.unidades.forEach(u => { if (u.kickoff) return; u.kickoff = {}; mudou = true;
+    if (u.cofEm) ['agenda_financeiro', 'agenda_consultor', 'ead'].forEach(k => u.kickoff[k] = { concluidoEm: u.cofEm + 'T09:00:00', por: 'Sistema' }); });
+  // Reuniões de acompanhamento da pós-inauguração.
+  if (!DB.posItens) { DB.posItens = JSON.parse(JSON.stringify(POS_PADRAO)); mudou = true; }
+  DB.posItens.forEach(it => { const p = POS_PADRAO.find(x => x.id === it.id); if (p && !it.resp) { it.resp = p.resp; mudou = true; } });
+  DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } });
+  if (mudou) saveDB();
 }
 function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
 function resetDemo() { localStorage.removeItem(DB_KEY); localStorage.removeItem(SESSION_KEY); loadDB(); session.user = null; location.hash = '#/login'; }
@@ -46,6 +90,19 @@ function link(path) { return '#' + ctx.base + '/' + path.replace(/^\/+/, ''); }
 
 /* ---------- Acesso aos dados ---------- */
 const getFrentes = () => DB.frentes;
+const getVendasItens = () => DB.vendasItens || VENDAS_PADRAO;
+function vendaFeita(unit, vid) { return !!(unit.vendas && unit.vendas[vid]); }
+function vendasFeitas(unit) { return getVendasItens().filter(v => vendaFeita(unit, v.id)).length; }
+function vendasConcluidas(unit) { return vendasFeitas(unit) === getVendasItens().length; }
+const getKickoffItens = () => DB.kickoffItens || KICKOFF_PADRAO;
+function kickoffFeito(unit, item) {
+  if (item.tipo === 'reuniao') return !!unit.cofEm;
+  const st = unit.kickoff && unit.kickoff[item.id];
+  return item.tipo === 'nome' ? !!(st && st.valor) : !!st;
+}
+function kickoffFeitos(unit) { return getKickoffItens().filter(i => kickoffFeito(unit, i)).length; }
+function kickoffConcluido(unit) { return kickoffFeitos(unit) === getKickoffItens().length; }
+function consultorCampo(unit) { return (unit.kickoff && unit.kickoff.consultor && unit.kickoff.consultor.valor) || ''; }
 const getFrente = fid => DB.frentes.find(f => f.id === fid);
 const getUnidade = id => DB.unidades.find(u => u.id === id);
 const getUser = id => DB.users.find(u => u.id === id);
@@ -60,7 +117,11 @@ function setTaskState(unit, fid, tid, patch) {
   unit.tarefas[fid][tid] = Object.assign({ status: 'pendente', anexos: [], comentarios: [] }, unit.tarefas[fid][tid] || {}, patch);
   return unit.tarefas[fid][tid];
 }
-function prazoTarefa(unit, task) { return unit.cofEm ? addDays(unit.cofEm, task.prazoDias || 0) : null; }
+function prazoTarefa(unit, task) {
+  // Tarefas de pós-inauguração contam o prazo a partir da data da inauguração.
+  if (task.pos) return unit.inauguracao.concluida && unit.inauguracao.data ? addDays(unit.inauguracao.data, task.prazoDias || 0) : null;
+  return unit.cofEm ? addDays(unit.cofEm, task.prazoDias || 0) : null;
+}
 function tarefaAtrasada(unit, task, st) {
   st = st || taskState(unit, task.frenteId || '', task.id);
   const prazo = prazoTarefa(unit, task);
@@ -70,10 +131,11 @@ function tarefaAtrasada(unit, task, st) {
 /* ---------- Progresso ---------- */
 function progressoFrente(unit, fid) {
   const f = getFrente(fid); const total = f.tarefas.length;
-  let done = 0, emValidacao = 0, atrasadas = 0, devolvidas = 0, proxima = null;
+  let done = 0, emValidacao = 0, atrasadas = 0, devolvidas = 0, proxima = null, posPendentes = 0;
   f.tarefas.forEach(t => {
     const st = taskState(unit, fid, t.id);
     if (st.status === 'concluido') done++;
+    else if (t.pos) posPendentes++;
     else {
       if (st.status === 'em_validacao') emValidacao++;
       if (st.status === 'devolvido') devolvidas++;
@@ -81,8 +143,24 @@ function progressoFrente(unit, fid) {
       if (!proxima) proxima = t;
     }
   });
-  return { done, total, pct: total ? Math.round(done / total * 100) : 0, emValidacao, atrasadas, devolvidas, proxima, completa: done === total };
+  return { done, total, pct: total ? Math.round(done / total * 100) : 0, emValidacao, atrasadas, devolvidas, proxima, posPendentes, completa: done + posPendentes === total };  // tarefas de pós-inauguração não travam o treinamento
 }
+function tarefasPosInauguracao(unit) {
+  const out = [];
+  getFrentes().forEach(f => f.tarefas.forEach(t => { if (t.pos) out.push({ frente: f, tarefa: t, st: taskState(unit, f.id, t.id) }); }));
+  return out;
+}
+const getPosItens = () => DB.posItens || POS_PADRAO;
+function posReuniao(unit, id) { return (unit.pos && unit.pos[id]) || {}; }
+function prazoPos(unit, item) { return unit.inauguracao.concluida && unit.inauguracao.data ? addDays(unit.inauguracao.data, item.dias) : null; }
+// Itens da etapa: tarefas de frentes marcadas como pós-inauguração (ex.: Google Maps) + reuniões de acompanhamento.
+function itensPosInauguracao(unit) {
+  return [
+    ...tarefasPosInauguracao(unit).map(x => ({ id: x.tarefa.id, titulo: x.tarefa.titulo, ok: x.st.status === 'concluido', prazo: prazoTarefa(unit, x.tarefa), tarefa: x.tarefa, frente: x.frente })),
+    ...getPosItens().map(it => ({ id: it.id, titulo: it.titulo, ok: !!posReuniao(unit, it.id).concluidoEm, prazo: prazoPos(unit, it), reuniao: it, responsavel: it.resp || 'Consultor de campo' })),
+  ];
+}
+function posInauguracaoConcluida(unit) { return unit.inauguracao.concluida && itensPosInauguracao(unit).every(i => i.ok); }
 function treinamentoLiberado(unit) { return !!unit.cofEm && getFrentes().every(f => progressoFrente(unit, f.id).completa); }
 function modulosFeitos(unit) { return DB.modulos.filter(m => unit.treinamento.modulos[m.id]).length; }
 function treinamentoConcluido(unit) { return treinamentoLiberado(unit) && modulosFeitos(unit) === DB.modulos.length && unit.treinamento.presenca; }
@@ -104,8 +182,9 @@ function progressoUnidade(unit) {
   return { done, total, pct: total ? Math.round(done / total * 100) : 0, porFrente };
 }
 function etapaUnidade(unit) {
-  if (unit.inauguracao.concluida) return { key: 'inaugurada', label: 'Inaugurada' };
-  if (!unit.cofEm) return { key: 'cof', label: 'Aguardando COF' };
+  if (unit.inauguracao.concluida) return posInauguracaoConcluida(unit) ? { key: 'inaugurada', label: 'Inaugurada' } : { key: 'pos_inauguracao', label: 'Pós-inauguração' };
+  if (!unit.cofEm && !vendasConcluidas(unit)) return { key: 'vendas', label: 'Vendas' };
+  if (!unit.cofEm) return { key: 'cof', label: 'Kickoff' };
   if (treinamentoConcluido(unit)) return { key: 'abertura', label: 'Abertura de loja' };
   if (treinamentoLiberado(unit)) return { key: 'treinamento', label: 'Treinamento' };
   const ativas = getFrentes().filter(f => { const p = progressoFrente(unit, f.id); return p.done > 0 && !p.completa; });
@@ -125,19 +204,24 @@ function tarefasAtrasadas(unit) {
 }
 function statusUnidade(unit) {
   if (unit.inauguracao.concluida) return { key: 'inaugurada', label: 'Inaugurada', cls: 'bg-emerald-100 text-emerald-700' };
-  if (!unit.cofEm) return { key: 'aguardando_cof', label: 'Aguardando COF', cls: 'bg-slate-200 text-slate-700' };
+  if (!unit.cofEm) return { key: 'aguardando_cof', label: 'Aguardando kickoff', cls: 'bg-slate-200 text-slate-700' };
   if (tarefasAtrasadas(unit).length) return { key: 'atencao', label: 'Atenção', cls: 'bg-rose-100 text-rose-700' };
   if (validacoesPendentes(unit).length || (aberturaPronta(unit) === false && treinamentoConcluido(unit) && !unit.abertura.validacaoFinal)) return { key: 'validacao', label: 'Aguardando validação', cls: 'bg-amber-100 text-amber-700' };
   return { key: 'em_andamento', label: 'Em andamento', cls: 'bg-sky-100 text-sky-700' };
 }
 function proximaAcao(unit) {
-  if (unit.inauguracao.concluida) return { texto: 'Jornada concluída! 🎉', rota: 'abertura' };
-  if (!unit.cofEm) return { texto: 'Participar da reunião da COF', rota: 'painel', resp: 'franqueadora' };
+  if (unit.inauguracao.concluida) {
+    const pos = itensPosInauguracao(unit).filter(i => !i.ok).sort((a, b) => (a.prazo || '').localeCompare(b.prazo || ''))[0];
+    if (!pos) return { texto: 'Jornada concluída! 🎉', rota: 'pos' };
+    return { texto: pos.titulo, rota: 'pos', resp: 'franqueadora', quem: pos.tarefa ? pos.tarefa.quem : pos.responsavel };
+  }
+  if (!unit.cofEm && !vendasConcluidas(unit)) { const v = getVendasItens().find(x => !vendaFeita(unit, x.id)); return { texto: v.titulo, rota: 'vendas', resp: 'franqueadora', quem: v.quem || v.area }; }
+  if (!unit.cofEm) return { texto: 'Realizar a reunião introdutória (kickoff)', rota: 'kickoff', resp: 'franqueadora' };
   // devolvidas primeiro, depois atrasadas, depois a primeira pendente de responsabilidade do franqueado
   const cand = [];
   getFrentes().forEach(f => f.tarefas.forEach(t => {
     const st = taskState(unit, f.id, t.id);
-    if (st.status === 'concluido' || st.status === 'em_validacao') return;
+    if (st.status === 'concluido' || st.status === 'em_validacao' || t.pos) return;  // pós-inauguração só entra depois da festa
     const peso = (st.status === 'devolvido' ? 0 : 2) + (prazoTarefa(unit, t) < todayISO() ? 0 : 1) + (t.resp === 'franqueadora' ? 10 : 0);
     cand.push({ peso, prazo: prazoTarefa(unit, t), texto: t.titulo, rota: 'frente/' + f.id, frente: f, resp: t.resp || 'franqueado', status: st.status });
   }));

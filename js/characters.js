@@ -32,6 +32,14 @@ const ACESSORIOS = {
       <path d="M45 46 l3 3 l6 -7" stroke="#e11d48" stroke-width="2" fill="none" stroke-linecap="round"/>
     </g>
     <path d="M21 19 q11 -13 22 0 v3 h-22z" fill="#881337"/>`,
+  marketing: `
+    <g class="prop">
+      <path d="M42 42 l14 -7 v16 l-14 -7 z" fill="#f472b6" stroke="#be185d" stroke-width="1.5" stroke-linejoin="round"/>
+      <rect x="37" y="40" width="6" height="6" rx="1.5" fill="#be185d"/>
+      <path d="M59 38 q4 4 0 8" stroke="#be185d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </g>
+    <path d="M20 21 q12 -15 24 0 v2 h-24z" fill="#831843"/>
+    <rect x="18" y="20" width="28" height="3" rx="1.5" fill="#9d174d"/>`,
   abertura: `
     <g class="prop">
       <circle cx="52" cy="40" r="5" fill="none" stroke="#fbbf24" stroke-width="3"/>

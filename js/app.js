@@ -23,10 +23,13 @@ function rota() {
 
   let html, titulo = '';
   const seg = h.split('/').filter(Boolean);
-  const precisaUnidade = ['painel', 'jornada', 'frente', 'treinamento', 'abertura', 'documentos', 'timeline', 'relatorio'].includes(seg[0]);
+  const precisaUnidade = ['painel', 'vendas', 'kickoff', 'pos', 'jornada', 'frente', 'treinamento', 'abertura', 'documentos', 'timeline', 'relatorio'].includes(seg[0]);
   if (precisaUnidade && !ctx.unit) { html = vazio('Nenhuma unidade vinculada ao seu usuário. Fale com a franqueadora.', '🏪'); }
   else switch (seg[0]) {
     case 'painel':      titulo = 'Visão geral'; html = viewPainel(ctx.unit); break;
+    case 'vendas':      titulo = 'Vendas'; html = viewVendas(ctx.unit); break;
+    case 'kickoff':     titulo = 'Kickoff'; html = viewKickoff(ctx.unit); break;
+    case 'pos':         titulo = 'Pós-inauguração'; html = viewPos(ctx.unit); break;
     case 'jornada':     titulo = 'Minha jornada'; html = viewJornada(ctx.unit); break;
     case 'frente':      titulo = (getFrente(seg[1]) || {}).nome || 'Frente'; html = viewFrente(ctx.unit, seg[1]); break;
     case 'treinamento': titulo = 'Treinamento'; html = viewTreinamento(ctx.unit); break;
@@ -110,12 +113,27 @@ const acoes = {
     <form data-form="devolver" data-uid="${d.uid || ''}" data-fid="${d.fid}" data-tid="${d.tid}" class="mt-4 space-y-3"><textarea name="motivo" required rows="3" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-brand-500" placeholder="Motivo da devolução"></textarea><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white">Devolver</button></div></form>`),
   'reabrir': (d) => { reabrirTarefa(unidadeDaAcao(d), d.fid, d.tid); toast('Tarefa reaberta.', 'info'); rerender(); },
   'remover-anexo': (d) => { const st = taskState(ctx.unit, d.fid, d.tid); st.anexos = st.anexos.filter(a => a.id !== d.id); setTaskState(ctx.unit, d.fid, d.tid, { anexos: st.anexos }); rerender(); },
-  'confirmar-cof': () => abrirModal(`<div class="text-lg font-bold">Registrar reunião da COF</div><p class="text-sm text-slate-600 mt-1">Ao registrar, as seis frentes são liberadas e os prazos passam a contar a partir desta data.</p><form data-form="cof" class="mt-4 space-y-3"><div>${label('Data da reunião')}${input('data', `type="date" value="${todayISO()}" required`)}</div><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white">Registrar</button></div></form>`),
+  'confirmar-cof': () => abrirModal(`<div class="text-lg font-bold">Registrar reunião introdutória (kickoff)</div><p class="text-sm text-slate-600 mt-1">Ao registrar, as frentes de implantação são liberadas e os prazos passam a contar a partir desta data.</p><form data-form="cof" class="mt-4 space-y-3"><div>${label('Data da reunião')}${input('data', `type="date" value="${todayISO()}" required`)}</div><div class="flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white">Registrar</button></div></form>`),
   'toggle-modulo': (d, el) => { const u = ctx.unit; u.treinamento.modulos[d.mid] = el.checked; const m = DB.modulos.find(x => x.id === d.mid); registrar(u, `${el.checked ? 'Concluiu' : 'Reabriu'} o módulo "${m.titulo}".`, el.checked ? 'concluido' : 'info'); rerender(); },
   'confirmar-presenca': () => { const u = ctx.unit; u.treinamento.presenca = true; u.treinamento.concluidoEm = new Date().toISOString(); registrar(u, '🎓 Presença confirmada. Treinamento concluído — equipe pronta!', 'marco'); notificar(u, 'franqueadora', `${u.nome} concluiu o treinamento. Faça a validação final.`, 'abertura'); toast('Treinamento concluído! 🎓'); confete(); rerender(); },
   'validacao-final': () => { const u = ctx.unit; u.abertura.validacaoFinal = true; u.abertura.validacaoFinalEm = new Date().toISOString(); registrar(u, '✅ Validação final do consultor realizada. Loja liberada para inaugurar!', 'marco'); notificar(u, 'franqueado', 'A validação final foi concluída. Defina a data da Festa de Inauguração! 🎉', 'abertura'); toast('Validação final registrada.'); confete(); rerender(); },
   'confirmar-inauguracao': () => { const u = ctx.unit; u.inauguracao.concluida = true; u.inauguracao.concluidaEm = new Date().toISOString(); registrar(u, '🎉 Festa de Inauguração realizada! Jornada de implantação concluída.', 'marco'); notificar(u, 'franqueadora', `${u.nome} foi inaugurada! 🎉`, 'abertura'); notificar(u, 'franqueado', 'Parabéns! A jornada de implantação foi concluída. 🎉', 'abertura'); confete(6000); rerender(); },
   'cobrar': (d) => { const u = getUnidade(d.uid); const p = proximaAcao(u); notificar(u, 'franqueado', `Lembrete da franqueadora: "${p.texto}" aguarda sua ação.`, p.rota); registrar(u, `Cobrou a pendência "${p.texto}".`, 'cobranca'); toast(`Lembrete enviado para ${u.nome}.`); rerender(); },
+  kpi: (d) => { filtros.kpi = filtros.kpi === d.kpi ? '' : d.kpi; rota(); },
+  'pos-toggle': (d) => { if (!isFranqueadora()) return; const u = ctx.unit; const it = getPosItens().find(x => x.id === d.iid); u.pos = u.pos || {}; const st = u.pos[it.id] = u.pos[it.id] || {};
+    if (st.concluidoEm) { st.concluidoEm = null; st.por = null; registrar(u, `Reabriu "${it.titulo}".`, 'info'); }
+    else { st.concluidoEm = new Date().toISOString(); st.por = session.user.nome; registrar(u, `${it.titulo} realizada.`, 'concluido');
+      if (posInauguracaoConcluida(u)) { registrar(u, '📈 Pós-inauguração concluída. Jornada de implantação encerrada.', 'marco'); confete(3000); } }
+    rerender(); },
+  'kickoff-toggle': (d) => { if (!isFranqueadora()) return; const u = ctx.unit; const it = getKickoffItens().find(x => x.id === d.iid); u.kickoff = u.kickoff || {};
+    if (u.kickoff[it.id]) { delete u.kickoff[it.id]; registrar(u, `Reabriu o item de kickoff "${it.titulo}".`, 'info'); }
+    else { u.kickoff[it.id] = { concluidoEm: new Date().toISOString(), por: session.user.nome }; registrar(u, `Kickoff: "${it.titulo}" concluído.`, 'concluido'); fimKickoff(u); }
+    rerender(); },
+  'venda-toggle': (d) => { if (!isFranqueadora()) return; const u = ctx.unit; const v = getVendasItens().find(x => x.id === d.vid); u.vendas = u.vendas || {};
+    if (u.vendas[v.id]) { delete u.vendas[v.id]; registrar(u, `Reabriu o item de vendas "${v.titulo}".`, 'info'); }
+    else { u.vendas[v.id] = { concluidoEm: new Date().toISOString(), por: session.user.nome }; registrar(u, `Vendas: "${v.titulo}" concluído.`, 'concluido');
+      if (vendasConcluidas(u)) { registrar(u, '✍️ Etapa de Vendas concluída. Unidade pronta para o kickoff.', 'marco'); confete(2500); } }
+    rerender(); },
   'exportar-geral': () => baixar(`implantacao-franquias-${todayISO()}.json`, JSON.stringify(DB, null, 2)),
   'exportar-unidade': (d) => { const u = getUnidade(d.uid); baixar(`${u.id}-${todayISO()}.json`, JSON.stringify(u, null, 2)); },
 
@@ -127,7 +145,12 @@ const acoes = {
 };
 
 /* ---------- Formulários (data-form) ---------- */
+function fimKickoff(u) { if (kickoffConcluido(u)) { registrar(u, '🤝 Etapa de Kickoff concluída.', 'marco'); confete(2500); } }
 const forms = {
+  'kickoff-nome': (v, f) => { if (!isFranqueadora()) return; const u = ctx.unit; const it = getKickoffItens().find(x => x.id === f.dataset.iid); const nome = v.valor.trim(); if (!nome) return;
+    const antes = kickoffConcluido(u); u.kickoff = u.kickoff || {};
+    u.kickoff[it.id] = { valor: nome, concluidoEm: new Date().toISOString(), por: session.user.nome };
+    registrar(u, `${it.titulo} definido: ${nome}.`, 'info'); if (!antes) fimKickoff(u); toast('Consultor de campo salvo.'); rerender(); },
   'login': (v) => { const r = entrar(v.email, v.senha); if (r.erro) { loginMsg = { tipo: 'erro', texto: r.erro }; rota(); } else { location.hash = '#/'; rota(); toast(`Bem-vindo(a), ${session.user.nome.split(' ')[0]}!`); } },
   'primeiro-acesso': (v) => {
     const u = DB.users.find(x => x.email.toLowerCase() === v.email.trim().toLowerCase());
@@ -137,14 +160,14 @@ const forms = {
   'recuperar': (v) => { loginMsg = { tipo: 'ok', texto: `Se ${v.email} estiver cadastrado, um link de redefinição foi enviado (simulado neste protótipo).` }; location.hash = '#/login/entrar'; rota(); },
   'comentar': (v, f) => { const st = setTaskState(ctx.unit, f.dataset.fid, f.dataset.tid, {}); st.comentarios.push({ id: uid('c'), autor: session.user.nome, perfil: session.user.perfil, data: new Date().toISOString(), texto: v.texto }); const t = getFrente(f.dataset.fid).tarefas.find(x => x.id === f.dataset.tid); registrar(ctx.unit, `Comentou em "${t.titulo}": ${v.texto}`, 'comentario'); notificar(ctx.unit, isFranqueado() ? 'franqueadora' : 'franqueado', `${session.user.nome} comentou em "${t.titulo}".`, 'frente/' + f.dataset.fid); rerender(); },
   'devolver': (v, f) => { const u = f.dataset.uid ? getUnidade(f.dataset.uid) : ctx.unit; devolverTarefa(u, f.dataset.fid, f.dataset.tid, v.motivo); fecharModal(); toast('Entrega devolvida para ajuste.', 'info'); rerender(); },
-  'cof': (v) => { const u = ctx.unit; u.cofEm = v.data; registrar(u, 'Reunião da COF realizada. Frentes de implantação liberadas.', 'marco'); notificar(u, 'franqueado', 'A COF foi realizada. Suas seis frentes de implantação estão liberadas! 🚀', 'jornada'); fecharModal(); toast('COF registrada. Frentes liberadas!'); confete(2500); rerender(); },
+  'cof': (v) => { const u = ctx.unit; u.cofEm = v.data; registrar(u, 'Reunião introdutória (kickoff) realizada. Frentes de implantação liberadas.', 'marco'); fimKickoff(u); notificar(u, 'franqueado', 'A reunião introdutória foi realizada. Suas frentes de implantação estão liberadas! 🚀', 'jornada'); fecharModal(); toast('COF registrada. Frentes liberadas!'); confete(2500); rerender(); },
   'agenda': (v) => { const u = ctx.unit; u.treinamento.agenda = { data: v.data, local: v.local, participantes: v.participantes, instrutor: v.instrutor }; registrar(u, `Agendou o treinamento para ${fmtDate(v.data)} em ${v.local}.`, 'info'); notificar(u, 'franqueado', `Treinamento agendado para ${fmtDate(v.data)} · ${v.local}.`, 'treinamento'); toast('Agenda salva.'); rerender(); },
   'inauguracao': (v) => { const u = ctx.unit; u.inauguracao.data = v.data; registrar(u, `Definiu a data da Festa de Inauguração: ${fmtDate(v.data)}.`, 'info'); notificar(u, isFranqueado() ? 'franqueadora' : 'franqueado', `Festa de Inauguração marcada para ${fmtDate(v.data)} 🎉`, 'abertura'); toast('Data da festa salva.'); rerender(); },
 
   'admin-unidade': (v) => {
     const uidU = uid('un'); const fid = uid('u');
     DB.users.push({ id: fid, nome: v.fnome, email: v.femail, senha: null, perfil: 'franqueado', unidadeId: uidU, convite: v.convite.toUpperCase() });
-    DB.unidades.push({ id: uidU, nome: v.nome, cidade: v.cidade, franqueadoId: fid, contratoEm: v.contratoEm, cofEm: null, tarefas: {}, timeline: [{ id: uid('ev'), data: new Date().toISOString(), usuario: session.user.nome, perfil: 'admin', texto: 'Contrato de franquia assinado. Unidade criada.', tipo: 'marco' }], notificacoes: [], treinamento: { agenda: null, modulos: {}, presenca: false, concluidoEm: null }, abertura: { validacaoFinal: false, validacaoFinalEm: null }, inauguracao: { data: null, concluida: false, concluidaEm: null } });
+    DB.unidades.push({ id: uidU, nome: v.nome, cidade: v.cidade, franqueadoId: fid, contratoEm: v.contratoEm, cofEm: null, vendas: {}, kickoff: {}, pos: {}, tarefas: {}, timeline: [{ id: uid('ev'), data: new Date().toISOString(), usuario: session.user.nome, perfil: 'admin', texto: 'Contrato de franquia assinado. Unidade criada.', tipo: 'marco' }], notificacoes: [], treinamento: { agenda: null, modulos: {}, presenca: false, concluidoEm: null }, abertura: { validacaoFinal: false, validacaoFinalEm: null }, inauguracao: { data: null, concluida: false, concluidaEm: null } });
     toast(`Unidade criada. Convite ${v.convite.toUpperCase()} enviado para ${v.femail}.`); rerender();
   },
   'admin-usuario': (v) => { if (DB.users.some(u => u.email.toLowerCase() === v.email.toLowerCase())) { toast('Já existe um usuário com este e-mail.', 'erro'); return; } DB.users.push({ id: uid('u'), nome: v.nome, email: v.email, senha: v.senha, perfil: v.perfil, unidadeId: v.perfil === 'franqueado' ? (v.unidadeId || null) : null }); toast('Usuário cadastrado.'); rerender(); },

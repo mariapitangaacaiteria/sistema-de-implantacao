@@ -19,11 +19,11 @@ python3 -m http.server 8080
 | Primeiro acesso (convite) | caucaia@franquia.com | convite `ABC123` |
 
 ## Fluxo implementado
-Franqueado (contrato) → COF → 6 frentes em paralelo (Projeto Arquitetônico, Plano de Investimento, Sistema PDV, Contratações, Alvarás e Documentações, Abertura de Loja) → Treinamento (personagens se encontram) → Abertura → Festa de Inauguração.
+Vendas (checklist) → Kickoff (reunião introdutória e checklist) → 7 frentes em paralelo (Projeto Arquitetônico, Plano de Investimento, Sistema PDV, Contratações, Alvarás e Documentações, Marketing Inaugural, Abertura de Loja) → Treinamento (personagens se encontram) → Abertura → Festa de Inauguração.
 
 - Cada frente tem um personagem que caminha na trilha a cada tarefa concluída.
 - Tarefas com validação vão para a franqueadora, que aprova ou devolve com motivo.
-- Prazos contam a partir da COF; tarefas vencidas marcam a unidade como "Atenção".
+- Prazos contam a partir da reunião introdutória (kickoff); tarefas vencidas marcam a unidade como "Atenção".
 - Painel central da franqueadora com filtros, validações pendentes, cobrança de pendência e relatório.
 - Administração: unidades, usuários (convite de primeiro acesso), checklists por frente, módulos de treinamento.
 
