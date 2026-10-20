@@ -136,6 +136,7 @@ function layout(content, opts = {}) {
     sec('Franqueadora');
     item('#/franqueadora', '🏢', 'Painel central', 'exact');
     item('#/validacoes', '✅', 'Validações');
+    item('#/operacao', '📋', 'Checklist de operação');
     if (isAdmin()) item('#/admin', '⚙️', 'Administração');
   }
   if (unit) {
@@ -147,6 +148,7 @@ function layout(content, opts = {}) {
     item(link('treinamento'), '🎓', 'Treinamento');
     item(link('abertura'), '🎉', 'Abertura e inauguração');
     item(link('pos'), '📈', 'Pós-inauguração');
+    item(link('operacao'), '📋', 'Checklist de operação');
     item(link('documentos'), '📎', 'Documentos');
     item(link('timeline'), '🕓', 'Linha do tempo');
     if (isFranqueadora()) item(link('relatorio'), '📄', 'Relatório');
@@ -518,6 +520,109 @@ function viewPos(unit) {
     ${!inau ? '<div class="mb-5 p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">🔒 Esta etapa começa depois da Festa de Inauguração. As datas das reuniões são calculadas a partir da data da inauguração. </div>' : ''}
     ${card(`<div class="p-5"><div class="flex justify-between text-sm font-bold"><span>${feitos} de ${itens.length} itens</span><span class="text-brand-600">${pct}%</span></div><div class="mt-2">${barra(pct, '#ec4899', 'h-3')}</div></div>`, 'mb-5')}
     <div class="space-y-3">${lista}</div>`;
+}
+
+/* ---------- Checklist de operação ---------- */
+// Bloco de nota: número + faixa (Excelente / Bom / Revisar).
+function blocoNotaOp(n, tamanho = 'md') {
+  const f = faixaNotaOp(n);
+  if (tamanho === 'lg') return `<div class="text-5xl font-extrabold tracking-tight" style="color:${f.cor}">${fmtNotaOp(n)}</div><div class="mt-2">${badge(f.label, f.cls + ' !text-sm !px-3 !py-1')}</div>`;
+  return `<span class="font-extrabold text-slate-900">${fmtNotaOp(n)}</span> ${badge(f.label, f.cls)}`;
+}
+function barraNotaOp(n) { return barra(n === null ? 0 : Math.round(n), faixaNotaOp(n).cor); }
+
+// Página da unidade: lista de visitas ou uma visita aberta.
+function viewOperacao(unit, vid) {
+  if (vid) { const v = (unit.visitas || []).find(x => x.id === vid); return v && (v.concluida || isFranqueadora()) ? viewVisitaOp(unit, v) : vazio('Visita não encontrada.', '📋'); }
+  const visitas = visitasUnidade(unit).filter(v => v.concluida || isFranqueadora());
+  const ult = visitas.find(v => v.concluida);
+  const destaque = ult ? card(`<div class="p-5 md:p-6 grid md:grid-cols-3 gap-6 items-center">
+      <div class="text-center md:border-r md:pr-6"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Média geral da última visita</div>${blocoNotaOp(notaGeralOp(ult), 'lg')}<div class="text-xs text-slate-500 mt-3">${fmtDate(ult.data)} · ${esc(ult.campos.consultor || ult.criadoPor || '—')}</div></div>
+      <div class="md:col-span-2 space-y-2.5">${CHECKLIST_OPERACAO.map(c => { const n = notaCategoriaOp(ult, c); return `<div class="flex items-center gap-3 text-sm"><span class="w-40 shrink-0 truncate">${c.emoji} ${esc(c.curto)}</span><div class="flex-1">${barraNotaOp(n)}</div><span class="w-12 text-right font-bold">${fmtNotaOp(n)}</span></div>`; }).join('')}</div>
+    </div>`, 'mb-6') : '';
+  const linhas = visitas.map(v => { const n = notaGeralOp(v); return `<tr class="hover:bg-slate-50">
+      <td class="p-4 whitespace-nowrap"><a href="${link('operacao/' + v.id)}" class="font-semibold text-slate-900 hover:text-brand-600">${fmtDate(v.data)}</a> <span class="text-xs text-slate-400">${esc(v.hora || '')}</span></td>
+      <td class="p-4">${esc(v.campos.consultor || v.criadoPor || '—')}</td>
+      <td class="p-4 w-48"><div class="flex items-center gap-2"><div class="flex-1">${barraNotaOp(n)}</div><span class="text-xs font-bold w-9 text-right">${fmtNotaOp(n)}</span></div></td>
+      <td class="p-4">${badge(faixaNotaOp(n).label, faixaNotaOp(n).cls)} ${v.concluida ? '' : badge('Rascunho', 'bg-amber-100 text-amber-700')}</td>
+      <td class="p-4 text-right"><a href="${link('operacao/' + v.id)}" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">${v.concluida ? 'Ver' : 'Continuar'}</a></td></tr>`; }).join('');
+  return `${pageTitle('Checklist de operação', 'Relatório de visita da consultoria: ambiente, equipe, produto, produção, redes sociais e delivery.', isFranqueadora() ? btn('+ Nova visita', 'data-action="op-nova"') : '')}
+    ${destaque}
+    ${card(visitas.length ? `<div class="overflow-x-auto"><table class="w-full min-w-[640px] text-sm"><thead><tr class="text-left text-[11px] text-slate-500 uppercase border-b"><th class="p-4">Data</th><th class="p-4">Consultor</th><th class="p-4">Média geral</th><th class="p-4">Resultado</th><th class="p-4"></th></tr></thead><tbody class="divide-y">${linhas}</tbody></table></div>`
+      : vazio(isFranqueadora() ? 'Nenhuma visita registrada. Clique em "Nova visita" para preencher o primeiro checklist.' : 'Nenhuma visita de operação registrada ainda.', '📋'))}
+    <p class="text-xs text-slate-400 mt-3">Cálculo: cada categoria vale positivos ÷ (positivos + negativos). Itens não avaliados ficam de fora. Delivery usa a média das notas de 0 a 5. A média geral é a média das categorias avaliadas. Faixas: ${FAIXAS_NOTA_OPERACAO.map((f, i, l) => f.min > 0 ? `${f.label} a partir de ${f.min}%` : `${f.label} abaixo de ${l[i - 1].min}%`).join(', ')}.</p>`;
+}
+
+// Formulário / relatório de uma visita. Edição só para a franqueadora enquanto a visita não for concluída.
+function viewVisitaOp(unit, v) {
+  const edita = isFranqueadora() && !v.concluida; const dis = edita ? '' : 'disabled';
+  const campo = (nome, rotulo, tipo = 'text') => `<div>${label(rotulo)}<input name="${nome}" type="${tipo}" value="${esc(nome === 'data' ? v.data : nome === 'hora' ? v.hora : (v.campos[nome] || ''))}" data-op="campo" ${dis} class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white disabled:bg-slate-50 disabled:text-slate-700 focus:border-brand-500 outline-none"></div>`;
+  const cabecalho = card(`<div class="p-5 md:p-6">
+      <div class="flex items-start gap-4 mb-5"><img src="img/logo-roxa.svg" alt="${esc(DB.config.marca)}" class="w-16 h-16 -ml-1 shrink-0"><div class="flex-1"><div class="text-[10px] font-bold tracking-widest text-brand-600">CHECKLIST DE OPERAÇÃO</div><h2 class="text-xl font-extrabold text-slate-900">${esc(unit.nome)}</h2><div class="text-sm text-slate-500">${esc(unit.cidade)}</div></div>
+        ${v.concluida ? badge('Concluída em ' + fmtDate(v.concluidaEm), 'bg-emerald-100 text-emerald-700') : badge('Rascunho', 'bg-amber-100 text-amber-700')}</div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${campo('data', 'Data', 'date')}${campo('hora', 'Hora', 'time')}${campo('responsavel', 'Responsável (loja)')}${campo('consultor', 'Consultor responsável')}${campo('sistemaCaixa', 'Sistema de caixa')}${campo('horario', 'Horário de funcionamento')}${campo('preco', 'Preço praticado')}${campo('quadro', 'Quadro de funcionários')}</div></div>`, 'mb-5');
+
+  const opcao = (c, it, valor, rot, on) => { const r = respostaOp(v, c.id, it.id).r || '';
+    return `<label class="${edita ? 'cursor-pointer' : ''}"><input type="radio" class="peer sr-only" name="r_${c.id}_${it.id}" value="${valor}" data-op="r" data-cat="${c.id}" data-item="${it.id}" ${r === valor ? 'checked' : ''} ${dis}>
+      <span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 bg-white ${edita ? 'hover:bg-slate-50' : ''} ${on}">${rot}</span></label>`; };
+  const categorias = CHECKLIST_OPERACAO.map(c => {
+    const itens = c.itens.map((it, i) => { const r = respostaOp(v, c.id, it.id);
+      const marcador = c.tipo === 'nota'
+        ? `<select data-op="nota" data-cat="${c.id}" data-item="${it.id}" ${dis} class="px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm bg-white disabled:bg-slate-50"><option value="">Não avaliado</option>${[5, 4, 3, 2, 1, 0].map(n => `<option value="${n}" ${r.nota !== null && r.nota !== undefined && +r.nota === n ? 'selected' : ''}>${'★'.repeat(n) || '0'} ${n}</option>`).join('')}</select>`
+        : `<div class="flex gap-1.5">${opcao(c, it, 'pos', '✓ Positivo', 'peer-checked:bg-emerald-600 peer-checked:border-emerald-600 peer-checked:text-white')}${opcao(c, it, 'neg', '✕ Negativo', 'peer-checked:bg-rose-600 peer-checked:border-rose-600 peer-checked:text-white')}${opcao(c, it, '', 'N/A', 'peer-checked:bg-slate-200 peer-checked:text-slate-700')}</div>`;
+      return `${it.grupo ? `<div class="px-4 md:px-5 pt-3 pb-1 text-[11px] font-bold tracking-widest text-brand-700 uppercase bg-brand-50/60">${esc(it.grupo)}</div>` : ''}
+        <div class="px-4 md:px-5 py-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+          <div class="flex items-start gap-3 flex-1 min-w-0"><span class="w-6 h-6 rounded-md bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center shrink-0">${i + 1}</span><span class="text-sm text-slate-800">${esc(it.texto)}</span></div>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 md:w-[440px] shrink-0">${marcador}<input data-op="obs" data-cat="${c.id}" data-item="${it.id}" value="${esc(r.obs || '')}" ${dis} placeholder="${edita ? 'Observação' : ''}" class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white disabled:bg-transparent disabled:border-transparent"></div>
+        </div>`; }).join('');
+    return `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-5 print:break-inside-avoid">
+      <div class="px-4 md:px-5 py-3 bg-brand-900 text-white flex items-center gap-2"><span class="text-lg">${c.emoji}</span><span class="font-bold text-sm uppercase tracking-wide">${esc(c.titulo)}</span></div>
+      <div class="divide-y divide-slate-100">${itens}</div>
+      <div class="px-4 md:px-5 py-3 bg-slate-50 border-t flex items-center justify-between text-sm"><span class="text-slate-500 font-semibold">Nota da categoria</span><span data-nota-cat="${c.id}">${blocoNotaOp(notaCategoriaOp(v, c))}</span></div>
+    </div>`; }).join('');
+
+  const resumo = `<div class="lg:sticky lg:top-20 space-y-5">
+    ${card(`<div class="p-5 text-center"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Média geral da loja</div><div data-nota-geral>${blocoNotaOp(notaGeralOp(v), 'lg')}</div></div>`)}
+    ${card(`<div class="p-5"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Resumo dos itens avaliados</div><div class="space-y-2.5">${CHECKLIST_OPERACAO.map(c => `<div data-resumo-cat="${c.id}">${linhaResumoOp(v, c)}</div>`).join('')}</div></div>`)}
+    ${card(`<div class="p-5"><div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Observações complementares</div><textarea data-op="observacoes" rows="5" ${dis} placeholder="${edita ? 'Pontos de melhoria, combinados e prazos' : ''}" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white disabled:bg-slate-50">${esc(v.observacoes || '')}</textarea></div>`)}
+  </div>`;
+
+  let acoesTopo = btnSec('← Voltar', `onclick="location.hash='${link('operacao')}'"`) + btnSec('🖨️ Imprimir / PDF', 'onclick="window.print()"');
+  if (isFranqueadora()) {
+    acoesTopo += v.concluida ? btnSec('Reabrir para edição', `data-action="op-reabrir" data-vid="${v.id}"`) : btn('✓ Concluir visita', `data-action="op-concluir" data-vid="${v.id}"`, 'bg-emerald-600 hover:bg-emerald-700 text-white');
+    acoesTopo += btn('Excluir', `data-action="op-excluir" data-vid="${v.id}"`, 'bg-white border border-rose-200 text-rose-700 hover:bg-rose-50');
+  }
+  return `<div data-visita="${v.id}">
+    <div class="no-print">${pageTitle('Visita de ' + fmtDate(v.data), edita ? 'Marque cada item como positivo, negativo ou N/A. As notas são recalculadas na hora.' : 'Relatório da visita de operação.', `<div class="flex flex-wrap gap-2">${acoesTopo}</div>`)}</div>
+    ${cabecalho}
+    <div class="grid lg:grid-cols-3 gap-5 items-start"><div class="lg:col-span-2">${categorias}</div>${resumo}</div>
+  </div>`;
+}
+function linhaResumoOp(v, c) {
+  const n = notaCategoriaOp(v, c), k = contagemCategoriaOp(v, c);
+  return `<div class="flex items-center justify-between text-sm gap-2"><span class="truncate">${c.emoji} ${esc(c.curto)}</span><span class="font-bold">${fmtNotaOp(n)}</span></div>
+    <div class="mt-1">${barraNotaOp(n)}</div><div class="text-[11px] text-slate-400 mt-0.5">${k.avaliados} de ${k.total} itens avaliados${c.tipo === 'nota' ? '' : ` · ${k.pos} positivo(s), ${k.neg} negativo(s)`}</div>`;
+}
+// Atualiza as notas na tela sem redesenhar a página (mantém a rolagem e o foco).
+function atualizarNotasOp(v) {
+  CHECKLIST_OPERACAO.forEach(c => {
+    const a = document.querySelector(`[data-nota-cat="${c.id}"]`); if (a) a.innerHTML = blocoNotaOp(notaCategoriaOp(v, c));
+    const b = document.querySelector(`[data-resumo-cat="${c.id}"]`); if (b) b.innerHTML = linhaResumoOp(v, c);
+  });
+  const g = document.querySelector('[data-nota-geral]'); if (g) g.innerHTML = blocoNotaOp(notaGeralOp(v), 'lg');
+}
+
+// Visão da franqueadora: última nota de cada unidade.
+function viewOperacaoGeral() {
+  const linhas = DB.unidades.map(u => ({ u, v: ultimaVisitaConcluida(u), total: (u.visitas || []).filter(x => x.concluida).length }))
+    .sort((a, b) => (a.v ? notaGeralOp(a.v) : 999) - (b.v ? notaGeralOp(b.v) : 999));
+  return `${pageTitle('Checklist de operação', 'Última visita de cada unidade, das notas mais baixas para as mais altas.')}
+    ${card(`<div class="overflow-x-auto"><table class="w-full min-w-[720px] text-sm"><thead><tr class="text-left text-[11px] text-slate-500 uppercase border-b"><th class="p-4">Unidade</th><th class="p-4">Última visita</th><th class="p-4 w-56">Média geral</th><th class="p-4">Resultado</th><th class="p-4"></th></tr></thead><tbody class="divide-y">${linhas.map(({ u, v, total }) => { const n = v ? notaGeralOp(v) : null; return `<tr class="hover:bg-slate-50">
+      <td class="p-4"><a href="#/u/${u.id}/operacao" class="font-bold text-slate-900 hover:text-brand-600">${esc(u.nome)}</a><div class="text-xs text-slate-500">${esc(u.cidade)}${total ? ` · ${total} visita(s)` : ''}</div></td>
+      <td class="p-4">${v ? fmtDate(v.data) + `<div class="text-xs text-slate-500">${esc(v.campos.consultor || '—')}</div>` : '<span class="text-slate-400">Nenhuma</span>'}</td>
+      <td class="p-4"><div class="flex items-center gap-2"><div class="flex-1">${barraNotaOp(n)}</div><span class="text-xs font-bold w-9 text-right">${fmtNotaOp(n)}</span></div></td>
+      <td class="p-4">${badge(faixaNotaOp(n).label, faixaNotaOp(n).cls)}</td>
+      <td class="p-4 text-right whitespace-nowrap"><a href="#/u/${u.id}/operacao" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">Abrir</a></td></tr>`; }).join('')}</tbody></table></div>`)}`;
 }
 
 /* ---------- Documentos ---------- */

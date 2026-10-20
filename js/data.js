@@ -164,6 +164,77 @@ const POS_PADRAO = [
   { id: 'acomp60', titulo: 'Reunião de acompanhamento 60 dias', dias: 60, resp: 'Consultor de campo' },
 ];
 
+// Checklist de operação (Relatório de Visita Padrão). Cada item é avaliado como Positivo, Negativo ou não avaliado;
+// a categoria "nota" (Delivery) recebe uma nota de 0 a 5. "grupo" é um subtítulo exibido antes do item.
+const CHECKLIST_OPERACAO = [
+  { id: 'externo', titulo: 'Experiência do cliente ao chegar na loja (ambiente externo)', curto: 'Ambiente externo', emoji: '🏬', itens: [
+    { id: 'limpeza_frente', texto: 'Limpeza (frente de loja e calçada da loja)' },
+    { id: 'estacionamento', texto: 'Estacionamento' },
+    { id: 'paisagismo',     texto: 'Paisagismo' },
+    { id: 'fachada',        texto: 'Fachada' },
+    { id: 'placa',          texto: 'Placa Maria Pitanga' },
+    { id: 'iluminacao',     texto: 'Iluminação' },
+    { id: 'mesas',          texto: 'Mesas e cadeiras' },
+    { id: 'adesivos',       texto: 'Adesivos dos vidros' },
+    { id: 'vitrine',        texto: 'Limpeza da vitrine' },
+  ] },
+  { id: 'interno', titulo: 'Experiência do cliente no interior da loja', curto: 'Interior da loja', emoji: '🛋️', itens: [
+    { id: 'atmosfera',  texto: 'Atmosfera da loja (agradável?)' },
+    { id: 'som',        texto: 'Som da loja está agradável? (TV ou som)' },
+    { id: 'cheiro',     texto: 'O cheiro da loja é agradável?' },
+    { id: 'limpa',      texto: 'A loja está limpa?' },
+    { id: 'luzes',      texto: 'A iluminação está ok? (luzes queimadas)' },
+    { id: 'estrutura',  texto: 'Estrutura física da loja (por itens observados)' },
+  ] },
+  { id: 'equipe', titulo: 'Equipe de funcionários: apresentação da equipe de serviço', curto: 'Equipe', emoji: '👥', itens: [
+    { id: 'uniforme',     texto: 'Equipe devidamente uniformizada? (calçados fechados)' },
+    { id: 'aparencia',    texto: 'Aparência da equipe (cabelos presos, maquiagem ideal, sem adornos)' },
+    { id: 'conhecimento', texto: 'Produtos com ou sem açúcar, lactose e glúten', grupo: 'Conhecimento do produto' },
+    { id: 'simpatia',     texto: 'A equipe demonstra simpatia no atendimento?', grupo: 'Abordagem da equipe' },
+    { id: 'cooperacao',   texto: 'A equipe demonstra cooperação uns com os outros no serviço ao cliente?' },
+    { id: 'confianca',    texto: 'A equipe demonstra confiança na explicação do produto ao cliente?' },
+    { id: 'proatividade', texto: 'A equipe demonstra proatividade nas atividades da loja? (organização, limpeza e abastecimento)' },
+  ] },
+  { id: 'produto', titulo: 'Produto: armazenamento e exposição dos produtos', curto: 'Produto', emoji: '🍧', itens: [
+    { id: 'homologados',   texto: 'Produtos homologados pelo franqueador' },
+    { id: 'homogeneidade', texto: 'Homogeneidade do produto (cremosidade)' },
+    { id: 'disposicao',    texto: 'Disposição do açaí (sabores / cremes)' },
+    { id: 'gelatos',       texto: 'Mix de gelatos (oferta de sabores)' },
+    { id: 'toppings',      texto: 'Toppings variados e em boa disposição' },
+    { id: 'freezers',      texto: 'Limpeza dos freezers' },
+    { id: 'balcao',        texto: 'Limpeza do balcão de toppings' },
+    { id: 'plaquinhas',    texto: 'Adesivos / plaquinhas de freezers e toppings' },
+    { id: 'copos',         texto: 'Copos / potes personalizados' },
+  ] },
+  { id: 'producao', titulo: 'Área de produção: armazenamento e condições de trabalho', curto: 'Área de produção', emoji: '🧑‍🍳', itens: [
+    { id: 'secos',       texto: 'Armazenamento apropriado dos secos (toppings / embalagens)' },
+    { id: 'congelados',  texto: 'Armazenamento apropriado dos congelados' },
+    { id: 'limpeza',     texto: 'Limpeza da área de produção' },
+    { id: 'epis',        texto: 'Uso dos EPIs e boas práticas (touca, luva, máscara)' },
+    { id: 'utensilios',  texto: 'Utensílios apropriados (estado do material de trabalho)' },
+    { id: 'cozinha',     texto: 'Estrutura física da cozinha' },
+  ] },
+  { id: 'redes', titulo: 'Redes sociais e campanhas', curto: 'Redes e campanhas', emoji: '📱', itens: [
+    { id: 'redes_google', texto: 'A unidade atua nas redes sociais e no Google Meu Negócio' },
+    { id: 'promocoes',    texto: 'Realiza promoções para clientes? (últimos 30 dias)' },
+    { id: 'campanhas',    texto: 'Participa de campanhas? (marketing)' },
+    { id: 'incentivo',    texto: 'Participa da Campanha Comercial de Incentivo' },
+    { id: 'whatsapp',     texto: 'WhatsApp' },
+  ] },
+  { id: 'delivery', titulo: 'Delivery', curto: 'Delivery', emoji: '🛵', tipo: 'nota', itens: [
+    { id: 'ifood',    texto: 'Avaliação do delivery iFood' },
+    { id: 'whatsapp', texto: 'Avaliação do delivery WhatsApp' },
+    { id: 'outro1',   texto: 'Avaliação do delivery 3' },
+    { id: 'outro2',   texto: 'Avaliação do delivery 4' },
+  ] },
+];
+// Faixas da nota (0 a 100). Abaixo do menor mínimo a loja fica em "Revisar".
+const FAIXAS_NOTA_OPERACAO = [
+  { min: 90, label: 'Excelente', cls: 'bg-emerald-100 text-emerald-700', cor: '#10b981' },
+  { min: 70, label: 'Bom',       cls: 'bg-sky-100 text-sky-700',         cor: '#0ea5e9' },
+  { min: 0,  label: 'Revisar',   cls: 'bg-rose-100 text-rose-700',       cor: '#f43f5e' },
+];
+
 const MODULOS_PADRAO = [
   { id: 'cultura',     titulo: 'Cultura e padrões da marca',          carga: '4h' },
   { id: 'atendimento', titulo: 'Atendimento ao cliente',              carga: '4h' },
@@ -182,7 +253,7 @@ function _unidade(cfg) {
     id: cfg.id, nome: cfg.nome, cidade: cfg.cidade, franqueadoId: cfg.franqueadoId,
     contratoEm: cfg.contratoEm, cofEm: cfg.cofEm || null,
     tarefas: {}, timeline: [], notificacoes: [],
-    vendas: {}, kickoff: {}, pos: {},
+    vendas: {}, kickoff: {}, pos: {}, visitas: [],
     treinamento: { agenda: cfg.agenda || null, modulos: {}, presenca: false, concluidoEm: null },
     abertura: { validacaoFinal: false, validacaoFinalEm: null },
     inauguracao: { data: cfg.inauguracaoData || null, concluida: !!cfg.inaugurada, concluidaEm: cfg.inaugurada ? cfg.inauguracaoData : null },
@@ -202,6 +273,7 @@ function _unidade(cfg) {
     });
   });
   if (cfg.inaugurada) u.pos.acomp15 = { concluidoEm: _diasAtras(25) + 'T10:00:00', por: 'Carla Mendes' };
+  if (cfg.visitaDemo) u.visitas.push(_visitaDemo(cfg));
   if (cfg.modulosFeitos) cfg.modulosFeitos.forEach(m => u.treinamento.modulos[m] = true);
   if (cfg.treinamentoConcluido) { MODULOS_PADRAO.forEach(m => u.treinamento.modulos[m.id] = true); u.treinamento.presenca = true; u.treinamento.concluidoEm = _diasAtras(10) + 'T18:00:00'; }
   if (cfg.validacaoFinal) { u.abertura.validacaoFinal = true; u.abertura.validacaoFinalEm = _diasAtras(45) + 'T11:00:00'; }
@@ -212,6 +284,19 @@ function _unidade(cfg) {
   if (cfg.cofEm) u.timeline.push({ id: 'ev_' + cfg.id + '_2', data: cfg.cofEm + 'T09:00:00', usuario: 'Carla Mendes', perfil: 'franqueadora', texto: 'Reunião introdutória (kickoff) realizada. Frentes de implantação liberadas.', tipo: 'marco' });
   u.timeline.sort((a, b) => b.data.localeCompare(a.data));
   return u;
+}
+
+// Visita de exemplo: quase tudo positivo, com alguns pontos de atenção.
+function _visitaDemo(cfg) {
+  const neg = { interno: ['estrutura'], produto: ['homologados'], redes: ['incentivo'], externo: ['paisagismo'] };
+  const respostas = {};
+  CHECKLIST_OPERACAO.forEach(c => { respostas[c.id] = {};
+    c.itens.forEach(it => { respostas[c.id][it.id] = c.tipo === 'nota' ? { nota: it.id === 'ifood' ? 5 : it.id === 'whatsapp' ? 4 : null } : { r: (neg[c.id] || []).includes(it.id) ? 'neg' : 'pos' }; }); });
+  respostas.interno.estrutura.obs = 'Duas cadeiras com o estofado rasgado.';
+  respostas.produto.homologados.obs = 'Encontrado granola de marca não homologada.';
+  return { id: 'vis_' + cfg.id, data: _diasAtras(12), hora: '15:30', concluida: true, concluidaEm: _diasAtras(12) + 'T17:00:00', criadoPor: 'Ana Ribeiro',
+    campos: { responsavel: 'Paulo Santos', sistemaCaixa: 'PDV da rede', horario: '12h às 22h', preco: 'Tabela 2026', quadro: '6 funcionários', consultor: cfg.consultor || '' },
+    respostas, observacoes: 'Loja bem cuidada e equipe animada. Trocar as cadeiras danificadas e retirar a granola não homologada até a próxima visita.' };
 }
 
 function criarBancoDemo() {
@@ -276,7 +361,7 @@ function criarBancoDemo() {
       modulosFeitos: ['cultura', 'atendimento'],
     }),
     _unidade({
-      id: 'un_crato', consultor: 'Ana Ribeiro', nome: 'Unidade Crato', cidade: 'Crato - CE', franqueadoId: 'u_cra',
+      id: 'un_crato', consultor: 'Ana Ribeiro', visitaDemo: true, nome: 'Unidade Crato', cidade: 'Crato - CE', franqueadoId: 'u_cra',
       contratoEm: _diasAtras(200), cofEm: _diasAtras(190),
       agenda: { data: _diasAtras(55), local: 'Loja Crato', participantes: 'Paulo Santos e equipe', instrutor: 'Carla Mendes' },
       treinamentoConcluido: true, validacaoFinal: true, inaugurada: true, inauguracaoData: _diasAtras(40),

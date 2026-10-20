@@ -53,7 +53,7 @@ function migrarDB() {
   // Reuniões de acompanhamento da pós-inauguração.
   if (!DB.posItens) { DB.posItens = JSON.parse(JSON.stringify(POS_PADRAO)); mudou = true; }
   DB.posItens.forEach(it => { const p = POS_PADRAO.find(x => x.id === it.id); if (p && !it.resp) { it.resp = p.resp; mudou = true; } });
-  DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } });
+  DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } if (!u.visitas) { u.visitas = []; mudou = true; } });
   // Tarefas novas incluídas no padrão depois que o banco já existia. Cada uma roda uma única vez,
   // para não recriar uma tarefa que o administrador tenha apagado de propósito.
   if (DB.config && DB.config.marca === 'Rede Sabor & Cia') { DB.config.marca = 'Maria Pitanga'; mudou = true; }  // nome provisório da demonstração
@@ -281,6 +281,35 @@ const AVALIACAO_DOC = {
   aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
   ajuste:   { label: 'Ajuste solicitado', cls: 'bg-rose-100 text-rose-700' },
 };
+/* ---------- Checklist de operação: cálculo das notas ---------- */
+// Categoria Positivo/Negativo: positivos ÷ (positivos + negativos) × 100. Itens não avaliados ficam de fora.
+// Categoria de nota (Delivery): média das notas de 0 a 5, convertida para 0 a 100.
+// Nota geral: média das categorias que tiveram algum item avaliado.
+function respostaOp(visita, catId, itemId) { return ((visita.respostas || {})[catId] || {})[itemId] || {}; }
+function contagemCategoriaOp(visita, cat) {
+  let pos = 0, neg = 0, notas = [];
+  cat.itens.forEach(it => { const r = respostaOp(visita, cat.id, it.id);
+    if (cat.tipo === 'nota') { if (r.nota !== null && r.nota !== undefined && r.nota !== '') notas.push(+r.nota); }
+    else if (r.r === 'pos') pos++; else if (r.r === 'neg') neg++; });
+  return { pos, neg, notas, avaliados: cat.tipo === 'nota' ? notas.length : pos + neg, total: cat.itens.length };
+}
+function notaCategoriaOp(visita, cat) {
+  const c = contagemCategoriaOp(visita, cat);
+  if (cat.tipo === 'nota') return c.notas.length ? c.notas.reduce((a, b) => a + b, 0) / c.notas.length / 5 * 100 : null;
+  return c.pos + c.neg ? c.pos / (c.pos + c.neg) * 100 : null;
+}
+function notaGeralOp(visita) {
+  const ns = CHECKLIST_OPERACAO.map(c => notaCategoriaOp(visita, c)).filter(n => n !== null);
+  return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
+}
+function faixaNotaOp(n) {
+  if (n === null || n === undefined) return { label: 'Sem avaliação', cls: 'bg-slate-100 text-slate-500', cor: '#94a3b8' };
+  return FAIXAS_NOTA_OPERACAO.find(f => n >= f.min) || FAIXAS_NOTA_OPERACAO[FAIXAS_NOTA_OPERACAO.length - 1];
+}
+function fmtNotaOp(n) { return n === null || n === undefined ? '—' : Math.round(n) + '%'; }
+function visitasUnidade(unit) { return (unit.visitas || []).slice().sort((a, b) => (b.data + b.hora).localeCompare(a.data + a.hora)); }
+function ultimaVisitaConcluida(unit) { return visitasUnidade(unit).find(v => v.concluida) || null; }
+
 function notificar(unit, para, texto, rota) {
   const linkAbs = para === 'franqueado' ? '#/' + rota : '#/u/' + unit.id + '/' + rota;
   unit.notificacoes.unshift({ id: uid('nt'), para, texto, link: linkAbs, data: new Date().toISOString(), lida: false });

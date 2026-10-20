@@ -23,13 +23,14 @@ function rota() {
 
   let html, titulo = '';
   const seg = h.split('/').filter(Boolean);
-  const precisaUnidade = ['painel', 'vendas', 'kickoff', 'pos', 'jornada', 'frente', 'treinamento', 'abertura', 'documentos', 'timeline', 'relatorio'].includes(seg[0]);
-  if (precisaUnidade && !ctx.unit) { html = vazio('Nenhuma unidade vinculada ao seu usuário. Fale com a franqueadora.', '🏪'); }
+  const precisaUnidade = ['painel', 'vendas', 'kickoff', 'pos', 'operacao', 'jornada', 'frente', 'treinamento', 'abertura', 'documentos', 'timeline', 'relatorio'].includes(seg[0]);
+  if (precisaUnidade && !ctx.unit && !(seg[0] === 'operacao' && isFranqueadora())) { html = vazio('Nenhuma unidade vinculada ao seu usuário. Fale com a franqueadora.', '🏪'); }
   else switch (seg[0]) {
     case 'painel':      titulo = 'Visão geral'; html = viewPainel(ctx.unit); break;
     case 'vendas':      titulo = 'Vendas'; html = viewVendas(ctx.unit); break;
     case 'kickoff':     titulo = 'Kickoff'; html = viewKickoff(ctx.unit); break;
     case 'pos':         titulo = 'Pós-inauguração'; html = viewPos(ctx.unit); break;
+    case 'operacao':    titulo = 'Checklist de operação'; html = ctx.unit ? viewOperacao(ctx.unit, seg[1]) : (isFranqueadora() ? viewOperacaoGeral() : vazio('Acesso restrito.')); break;
     case 'jornada':     titulo = 'Minha jornada'; html = viewJornada(ctx.unit); break;
     case 'frente':      titulo = (getFrente(seg[1]) || {}).nome || 'Frente'; html = viewFrente(ctx.unit, seg[1]); break;
     case 'treinamento': titulo = 'Treinamento'; html = viewTreinamento(ctx.unit); break;
@@ -125,6 +126,18 @@ const acoes = {
   'confirmar-inauguracao': () => { const u = ctx.unit; u.inauguracao.concluida = true; u.inauguracao.concluidaEm = new Date().toISOString(); registrar(u, '🎉 Festa de Inauguração realizada! Jornada de implantação concluída.', 'marco'); notificar(u, 'franqueadora', `${u.nome} foi inaugurada! 🎉`, 'abertura'); notificar(u, 'franqueado', 'Parabéns! A jornada de implantação foi concluída. 🎉', 'abertura'); confete(6000); rerender(); },
   'cobrar': (d) => { const u = getUnidade(d.uid); const p = proximaAcao(u); notificar(u, 'franqueado', `Lembrete da franqueadora: "${p.texto}" aguarda sua ação.`, p.rota); registrar(u, `Cobrou a pendência "${p.texto}".`, 'cobranca'); toast(`Lembrete enviado para ${u.nome}.`); rerender(); },
   kpi: (d) => { filtros.kpi = filtros.kpi === d.kpi ? '' : d.kpi; rota(); },
+  'op-nova': () => { if (!isFranqueadora()) return; const u = ctx.unit; const agora = new Date(); const franq = getUser(u.franqueadoId);
+    const v = { id: uid('vis'), data: todayISO(), hora: String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0'), concluida: false, criadoPor: session.user.nome,
+      campos: { responsavel: franq ? franq.nome : '', consultor: consultorCampo(u) || session.user.nome, sistemaCaixa: '', horario: '', preco: '', quadro: '' }, respostas: {}, observacoes: '' };
+    u.visitas = u.visitas || []; u.visitas.push(v); saveDB(); location.hash = link('operacao/' + v.id); },
+  'op-concluir': (d) => { const u = ctx.unit; const v = u.visitas.find(x => x.id === d.vid); if (!v) return;
+    if (notaGeralOp(v) === null) { toast('Avalie pelo menos um item antes de concluir.', 'erro'); return; }
+    v.concluida = true; v.concluidaEm = new Date().toISOString(); const n = notaGeralOp(v), f = faixaNotaOp(n);
+    registrar(u, `Checklist de operação de ${fmtDate(v.data)} concluído: média ${fmtNotaOp(n)} (${f.label}).`, 'marco');
+    notificar(u, 'franqueado', `Novo checklist de operação: média ${fmtNotaOp(n)} (${f.label}).`, 'operacao/' + v.id); toast('Visita concluída e enviada ao franqueado.'); rerender(); },
+  'op-reabrir': (d) => { const v = ctx.unit.visitas.find(x => x.id === d.vid); if (!v) return; v.concluida = false; toast('Visita reaberta para edição.', 'info'); rerender(); },
+  'op-excluir': (d) => abrirModal(`<div class="text-lg font-bold">Excluir esta visita?</div><p class="text-sm text-slate-600 mt-1">O checklist e as notas desta visita serão apagados.</p><div class="mt-5 flex justify-end gap-2">${btnSec('Cancelar', 'data-action="fechar-modal"')}${btn('Excluir visita', `data-action="op-excluir-ok" data-vid="${d.vid}"`, 'bg-rose-600 hover:bg-rose-700 text-white')}</div>`),
+  'op-excluir-ok': (d) => { const u = ctx.unit; u.visitas = u.visitas.filter(x => x.id !== d.vid); fecharModal(); saveDB(); toast('Visita excluída.', 'info'); location.hash = link('operacao'); },
   'pos-toggle': (d) => { if (!isFranqueadora()) return; const u = ctx.unit; const it = getPosItens().find(x => x.id === d.iid); u.pos = u.pos || {}; const st = u.pos[it.id] = u.pos[it.id] || {};
     if (st.concluidoEm) { st.concluidoEm = null; st.por = null; registrar(u, `Reabriu "${it.titulo}".`, 'info'); }
     else { st.concluidoEm = new Date().toISOString(); st.por = session.user.nome; registrar(u, `${it.titulo} realizada.`, 'concluido');
@@ -255,6 +268,17 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target;
+  if (el.dataset.op) {  // checklist de operação: grava e recalcula sem redesenhar
+    const box = el.closest('[data-visita]'); const v = box && ctx.unit && ctx.unit.visitas.find(x => x.id === box.dataset.visita);
+    if (!v || v.concluida || !isFranqueadora()) return;
+    const resp = () => { v.respostas[el.dataset.cat] = v.respostas[el.dataset.cat] || {}; return v.respostas[el.dataset.cat][el.dataset.item] = v.respostas[el.dataset.cat][el.dataset.item] || {}; };
+    if (el.dataset.op === 'campo') { if (el.name === 'data' || el.name === 'hora') v[el.name] = el.value; else v.campos[el.name] = el.value; }
+    else if (el.dataset.op === 'r') resp().r = el.value || null;
+    else if (el.dataset.op === 'nota') resp().nota = el.value === '' ? null : +el.value;
+    else if (el.dataset.op === 'obs') resp().obs = el.value;
+    else if (el.dataset.op === 'observacoes') v.observacoes = el.value;
+    saveDB(); atualizarNotasOp(v); return;
+  }
   if (el.matches('input[type=checkbox][data-action]')) { acoes[el.dataset.action](el.dataset, el, e); return; }
   if (el.dataset.file) {
     anexarDocumentos(ctx.unit, ...el.dataset.file.split('|'), Array.from(el.files)); return;
