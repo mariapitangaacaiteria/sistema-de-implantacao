@@ -311,6 +311,7 @@ function criarBancoDemo() {
     kickoffItens: JSON.parse(JSON.stringify(KICKOFF_PADRAO)),
     posItens: JSON.parse(JSON.stringify(POS_PADRAO)),
     migracoes: ['tarefa-pedido'],
-    config: { marca: 'Rede Sabor & Cia', treinamentoRequer: 'todas' },
+    config: { marca: 'Maria Pitanga', treinamentoRequer: 'todas' },
   };
 }
+  

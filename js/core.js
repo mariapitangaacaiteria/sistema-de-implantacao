@@ -56,6 +56,7 @@ function migrarDB() {
   DB.unidades.forEach(u => { if (!u.pos) { u.pos = {}; mudou = true; } });
   // Tarefas novas incluídas no padrão depois que o banco já existia. Cada uma roda uma única vez,
   // para não recriar uma tarefa que o administrador tenha apagado de propósito.
+  if (DB.config && DB.config.marca === 'Rede Sabor & Cia') { DB.config.marca = 'Maria Pitanga'; mudou = true; }  // nome provisório da demonstração
   DB.migracoes = DB.migracoes || [];
   [{ id: 'tarefa-pedido', fid: 'abertura', tid: 'pedido', antesDe: 'estoque' }].forEach(m => {
     if (DB.migracoes.includes(m.id)) return;
@@ -263,7 +264,8 @@ function registrar(unit, texto, tipo = 'info', extra = {}) {
 // Os anexos de etapas ficam em unit.tarefas[<id da etapa>][<id do item>], igual às tarefas.
 function fontesDocumentos() {
   return [
-    { id: 'vendas', nome: 'Vendas', curto: 'Vendas', emoji: '✍️', rota: 'vendas', itens: getVendasItens() },
+    { id: 'vendas', nome: 'Vendas', curto: 'Vendas', emoji: '✍️', rota: 'vendas', itens: getVendasItens(), etapa: true },
+    { id: 'kickoff', nome: 'Kickoff', curto: 'Kickoff', emoji: '🤝', rota: 'kickoff', itens: getKickoffItens(), etapa: true },
     ...getFrentes().map(f => ({ id: f.id, nome: f.nome, curto: f.curto, emoji: f.emoji, rota: 'frente/' + f.id, itens: f.tarefas })),
   ];
 }

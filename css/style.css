@@ -32,12 +32,12 @@
 /* ---------- Etapas gerais ---------- */
 .stage { position: relative; }
 .stage + .stage::before { content: ''; position: absolute; left: -50%; top: 18px; width: 100%; height: 3px; background: #e2e8f0; z-index: 0; }
-.stage.done + .stage.done::before, .stage.done + .stage.current::before { background: #4f46e5; }
+.stage.done + .stage.done::before, .stage.done + .stage.current::before { background: #6f2c9f; }
 
 /* ---------- Diversos ---------- */
 .fade-in { animation: fadeIn .35s ease both; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
-.scene { background: radial-gradient(ellipse at 50% 100%, #c7d2fe 0%, #e0e7ff 45%, transparent 70%); }
+.scene { background: radial-gradient(ellipse at 50% 100%, #dfc5f1 0%, #efe2f8 45%, transparent 70%); }
 details > summary { list-style: none; cursor: pointer; }
 details > summary::-webkit-details-marker { display: none; }
 .toast { animation: toastIn .3s ease both; }
