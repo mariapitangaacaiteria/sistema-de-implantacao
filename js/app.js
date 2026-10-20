@@ -144,7 +144,18 @@ const acoes = {
 
   'admin-remover-unidade': (d) => { const u = getUnidade(d.id); abrirModal(`<div class="text-lg font-bold">Excluir ${esc(u.nome)}?</div><p class="text-sm text-slate-600 mt-2">Todo o histórico desta unidade será perdido.</p><div class="flex justify-end gap-2 mt-5">${btnSec('Cancelar', 'data-action="fechar-modal"')}${btn('Excluir', `data-action="admin-remover-unidade-ok" data-id="${u.id}"`, 'bg-rose-600 hover:bg-rose-700 text-white')}</div>`); },
   'admin-remover-unidade-ok': (d) => { DB.unidades = DB.unidades.filter(u => u.id !== d.id); DB.users.forEach(u => { if (u.unidadeId === d.id) u.unidadeId = null; }); fecharModal(); toast('Unidade excluída.', 'info'); rerender(); },
-  'admin-remover-usuario': (d) => { DB.users = DB.users.filter(u => u.id !== d.id); toast('Usuário excluído.', 'info'); rerender(); },
+  'admin-editar-usuario': (d) => { const u = getUser(d.id); if (!u) return;
+    const sel = 'w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white';
+    abrirModal(`<div class="text-lg font-bold">Editar usuário</div><p class="text-sm text-slate-600 mt-1">Altere o tipo de acesso e a unidade vinculada.</p>
+    <form data-form="admin-editar-usuario" data-id="${u.id}" class="mt-4 space-y-3">
+      <div>${label('Nome')}${input('nome', `value="${esc(u.nome)}" required`)}</div>
+      <div>${label('E-mail')}${input('email', `type="email" value="${esc(u.email)}" required`)}</div>
+      <div>${label('Tipo de usuário')}<select name="perfil" class="${sel}" onchange="this.form.querySelector('[data-campo-unidade]').classList.toggle('hidden', this.value !== 'franqueado')">${[['franqueado', 'Franqueado'], ['franqueadora', 'Franqueadora / consultor'], ['admin', 'Administrador']].map(([k, t]) => `<option value="${k}" ${u.perfil === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div data-campo-unidade class="${u.perfil === 'franqueado' ? '' : 'hidden'}">${label('Unidade do franqueado')}<select name="unidadeId" class="${sel}"><option value="">— selecione —</option>${DB.unidades.map(x => `<option value="${x.id}" ${u.unidadeId === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>
+      <div>${label('Nova senha')}${input('senha', 'minlength="6" placeholder="Deixe em branco para manter a atual"')}${!u.senha && u.convite ? `<div class="text-xs text-amber-600 mt-1">Convite pendente: código ${esc(u.convite)}</div>` : ''}</div>
+      <div class="flex justify-end gap-2 pt-1">${btnSec('Cancelar', 'data-action="fechar-modal"')}<button class="px-3.5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white">Salvar alterações</button></div>
+    </form>`); },
+  'admin-remover-usuario': (d) => { const un = getUnidade((getUser(d.id) || {}).unidadeId); DB.users = DB.users.filter(u => u.id !== d.id); ajustarResponsavelUnidade(un); toast('Usuário excluído.', 'info'); rerender(); },
   'admin-remover-tarefa': (d) => { const f = getFrente(d.fid); f.tarefas = f.tarefas.filter(t => t.id !== d.tid); toast('Tarefa removida do checklist.', 'info'); rerender(); },
   'admin-remover-modulo': (d) => { DB.modulos = DB.modulos.filter(m => m.id !== d.mid); rerender(); },
 };
@@ -174,7 +185,31 @@ async function anexarDocumentos(unit, fid, tid, files) {
   rota();
 }
 function fimKickoff(u) { if (kickoffConcluido(u)) { registrar(u, '🤝 Etapa de Kickoff concluída.', 'marco'); confete(2500); } }
+// Mantém o "franqueado responsável" de cada unidade apontando para um franqueado que ainda está vinculado a ela.
+function ajustarResponsavelUnidade(unit) {
+  if (!unit) return;
+  const atual = getUser(unit.franqueadoId);
+  if (atual && atual.perfil === 'franqueado' && atual.unidadeId === unit.id) return;
+  const outro = DB.users.find(x => x.perfil === 'franqueado' && x.unidadeId === unit.id);
+  unit.franqueadoId = outro ? outro.id : null;
+}
 const forms = {
+  'admin-editar-usuario': (v, f) => { const u = getUser(f.dataset.id); if (!u) return;
+    const email = v.email.trim();
+    if (DB.users.some(x => x.id !== u.id && x.email.toLowerCase() === email.toLowerCase())) { toast('Já existe um usuário com este e-mail.', 'erro'); return; }
+    if (u.id === session.user.id && u.perfil === 'admin' && v.perfil !== 'admin') { toast('Você não pode tirar o seu próprio acesso de administrador.', 'erro'); return; }
+    if (u.perfil === 'admin' && v.perfil !== 'admin' && DB.users.filter(x => x.perfil === 'admin').length === 1) { toast('O sistema precisa de pelo menos um administrador.', 'erro'); return; }
+    if (v.perfil === 'franqueado' && !v.unidadeId) { toast('Selecione a unidade do franqueado.', 'erro'); return; }
+    const unidadeAntes = getUnidade(u.unidadeId);
+    const mudancas = [];
+    if (u.perfil !== v.perfil) mudancas.push(`tipo: ${u.perfil} → ${v.perfil}`);
+    Object.assign(u, { nome: v.nome.trim(), email, perfil: v.perfil, unidadeId: v.perfil === 'franqueado' ? v.unidadeId : null });
+    if (v.senha) { u.senha = v.senha; u.convite = null; mudancas.push('senha redefinida'); }
+    const unidadeDepois = getUnidade(u.unidadeId);
+    if (unidadeAntes !== unidadeDepois) mudancas.push(`unidade: ${unidadeAntes ? unidadeAntes.nome : '—'} → ${unidadeDepois ? unidadeDepois.nome : '—'}`);
+    ajustarResponsavelUnidade(unidadeAntes); ajustarResponsavelUnidade(unidadeDepois);
+    if (unidadeDepois && mudancas.length) registrar(unidadeDepois, `Usuário ${u.nome} atualizado (${mudancas.join('; ')}).`, 'info');
+    fecharModal(); toast('Usuário atualizado.'); rerender(); },
   'anexo-ajuste': (v, f) => { const u = f.dataset.uid ? getUnidade(f.dataset.uid) : ctx.unit; const a = taskState(u, f.dataset.fid, f.dataset.tid).anexos.find(x => x.id === f.dataset.id); if (!a) return;
     Object.assign(a, { avaliacao: 'ajuste', avaliadoPor: session.user.nome, avaliadoEm: new Date().toISOString(), ajuste: { motivo: v.motivo, por: session.user.nome } });
     registrar(u, `Pediu ajuste no documento "${a.nome}": ${v.motivo}`, 'devolvido'); notificar(u, 'franqueado', `Ajuste solicitado no documento "${a.nome}".`, fonteDocumentos(f.dataset.fid).rota);
@@ -202,7 +237,7 @@ const forms = {
     DB.unidades.push({ id: uidU, nome: v.nome, cidade: v.cidade, franqueadoId: fid, contratoEm: v.contratoEm, cofEm: null, vendas: {}, kickoff: {}, pos: {}, tarefas: {}, timeline: [{ id: uid('ev'), data: new Date().toISOString(), usuario: session.user.nome, perfil: 'admin', texto: 'Contrato de franquia assinado. Unidade criada.', tipo: 'marco' }], notificacoes: [], treinamento: { agenda: null, modulos: {}, presenca: false, concluidoEm: null }, abertura: { validacaoFinal: false, validacaoFinalEm: null }, inauguracao: { data: null, concluida: false, concluidaEm: null } });
     toast(`Unidade criada. Convite ${v.convite.toUpperCase()} enviado para ${v.femail}.`); rerender();
   },
-  'admin-usuario': (v) => { if (DB.users.some(u => u.email.toLowerCase() === v.email.toLowerCase())) { toast('Já existe um usuário com este e-mail.', 'erro'); return; } DB.users.push({ id: uid('u'), nome: v.nome, email: v.email, senha: v.senha, perfil: v.perfil, unidadeId: v.perfil === 'franqueado' ? (v.unidadeId || null) : null }); toast('Usuário cadastrado.'); rerender(); },
+  'admin-usuario': (v) => { if (DB.users.some(u => u.email.toLowerCase() === v.email.toLowerCase())) { toast('Já existe um usuário com este e-mail.', 'erro'); return; } DB.users.push({ id: uid('u'), nome: v.nome, email: v.email, senha: v.senha, perfil: v.perfil, unidadeId: v.perfil === 'franqueado' ? (v.unidadeId || null) : null }); ajustarResponsavelUnidade(getUnidade(v.unidadeId)); toast('Usuário cadastrado.'); rerender(); },
   'admin-tarefa': (v, f) => { const t = getFrente(f.dataset.fid).tarefas.find(x => x.id === f.dataset.tid); Object.assign(t, { titulo: v.titulo, prazoDias: +v.prazoDias || 0, resp: v.resp, validacao: !!v.validacao }); toast('Tarefa atualizada.'); rerender(); },
   'admin-nova-tarefa': (v, f) => { getFrente(f.dataset.fid).tarefas.push({ id: uid('t'), titulo: v.titulo, prazoDias: +v.prazoDias || 0, resp: v.resp, validacao: !!v.validacao, instrucoes: '' }); toast('Tarefa adicionada a todas as unidades.'); rerender(); },
   'admin-modulo': (v, f) => { const m = DB.modulos.find(x => x.id === f.dataset.mid); m.titulo = v.titulo; m.carga = v.carga; toast('Módulo atualizado.'); rerender(); },
